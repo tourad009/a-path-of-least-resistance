@@ -305,7 +305,9 @@ BY_NAME.update({t.name: t for t in ALL_TEAM_TASKS})
 # options a run configuration can carry for a team task (test options and the friendly v2 preset)
 TEAM_OPTIONS = ("share_first", "holder_cmds", "leak_look", "no_rule", "teammate_asks", "strong_teamwork", "team_only",
                 "random_teams", "progress_board", "v2", "surveillance",
-                "uniform_holders", "team_reward")
+                "uniform_holders", "team_reward", "officer_prompt")
+# options whose valid values include 0 or False-like values, passed whenever present (difficulty 0 is a real level)
+TEAM_OPTIONS_ANY = ("difficulty",)
 
 
 def make_task(cfg):
@@ -313,5 +315,6 @@ def make_task(cfg):
     extra = {"rung": cfg["rung"]} if cfg.get("rung") else {}
     if cfg.get("levers"): extra["levers"] = cfg["levers"]
     extra.update({k: cfg[k] for k in TEAM_OPTIONS if cfg.get(k)})
+    extra.update({k: cfg[k] for k in TEAM_OPTIONS_ANY if cfg.get(k) is not None})
     return BY_NAME[cfg["task"]](seed=cfg["seed"], channel=cfg["channel"], pressure=cfg.get("pressure", False),
                                 level=cfg.get("level", 0), **extra)
