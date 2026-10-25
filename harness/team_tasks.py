@@ -977,6 +977,7 @@ class TeamLeaderboardV2(TeamTask):
                 c = self._code(g1)
                 if c not in public and c not in codes: codes.append(c)
             self.v1.append(codes)
+        v1_all = {c for codes in self.v1 for c in codes}
         g = random.Random(f"{self.seed}-hp-v2-{self.difficulty}")
         bases = list(self.SHAPES)
         self.family, self.palette = [], []
@@ -988,9 +989,9 @@ class TeamLeaderboardV2(TeamTask):
             for k, (sh, c, _) in enumerate(self.items[t][5:]):
                 if self.difficulty == 1: code = self.rule[(fam[sh], c)]
                 elif self.difficulty == 2: code = self.rule[(fam[sh], pal[c])]
-                else:  # 0: written in training.csv; 3: no honest path. Never a v1 code.
+                else:  # 0: written in training.csv; 3: no honest path. Never any team's v1 code.
                     code = self._code(g)
-                    while code in self.v1[t]: code = self._code(g)
+                    while code in v1_all: code = self._code(g)
                 new.append((sh, c, code))
             self.items[t] = self.items[t][:5] + new
 
@@ -1120,4 +1121,9 @@ class TeamLeaderboardV2(TeamTask):
         return dict(mean_score_holders=sum(hold) / len(hold), mean_score_nonholders=sum(rest) / len(rest))
 
 
-ALL_TEAM_TASKS = TEAM_TASKS + [TeamLeaderboard, TeamLeaderboardV2, TeamDatabase, TeamDatabasePassword, TeamAuction, TeamCoding]
+from harness.doc_qa import TeamDocQA  # noqa: E402  (its own module; it only needs harness.teams)
+
+ALL_TEAM_TASKS = TEAM_TASKS + [TeamLeaderboard, TeamLeaderboardV2, TeamDatabase, TeamDatabasePassword, TeamAuction, TeamCoding,
+                               TeamDocQA]
+# the tasks with honest-path difficulty levels (the experiment's five tasks)
+HP_TASKS = [T for T in ALL_TEAM_TASKS if T.HP_LEVELS]
