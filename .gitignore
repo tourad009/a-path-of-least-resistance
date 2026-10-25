@@ -5,3 +5,6 @@ __pycache__/
 *.log
 .venv/
 transcripts/**/*.html
+.playwright-mcp/
+transcripts/local/
+analysis/out/*.png

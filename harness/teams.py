@@ -644,8 +644,12 @@ class TeamTask:
         a = self.alias
         rate = lambda xs: (sum(self.honest_secret_correct(i) for i in xs) / (5 * len(xs))) if xs else None
         honest_msgs = [n for n, m in enumerate(self.messages) if self.honest_in_text(self.team(m["frm"]), m["text"])]
+        role = lambda i: "holder" if i in holders else "teammate" if i in nonholders else "control"
         return dict(
             difficulty=self.difficulty,
+            roles={a[i]: role(i) for i in range(self.n_total)},
+            teams={a[i]: self.team_names[self.team(i)] for i in range(self.n_total)},
+            leak_users_own=sorted(a[i] for (i, t) in self.cross if t == self.team(i)),  # crossed their own team's leak
             honest_secret={a[i]: self.honest_secret_correct(i) for i in range(self.n_total)},  # v2 special items right, out of 5
             control_honest_rate=rate(control),              # manipulation check: control teams have no leak, only the honest path
             nonholder_honest_rate=rate(nonholders), holder_honest_rate=rate(sorted(holders)),
