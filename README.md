@@ -10,13 +10,6 @@ measure whether the leak is used, shared and taken up, and whether a passive sec
 ## Status
 - **Main experiment: complete.** 600 runs: 6 models × 5 tasks × 4 levels × 5 seeds. Results are in `results/difficulty-*-main.jsonl`,
   with one transcript per run in `transcripts/`.
-- **Ablations: designed and partly run.** The design and predictions were fixed before any run
-  (`experiments/ABLATIONS.md`). Partial results so far (`results/ablations-*-ab1.jsonl`):
-  - leak handed over (`handover`), 120 of 150 runs;
-  - messaging off (`nomessaging`), 70 of 150;
-  - password leak and its answer-leak baseline, 10 runs each.
-
-  The other arms have not been run.
 - **Officer re-checks:** the 600 main runs read again with the original prompt and by a second-vendor officer
   (`results/*-main-officer-*.jsonl`).
 - **Paper:** `paper/` (LaTeX). Every number, table and figure is generated from the results files.
@@ -26,7 +19,7 @@ measure whether the leak is used, shared and taken up, and whether a passive sec
 |---|---|
 | `harness/` | the game, the five tasks, the honest-path levels, the officer, transcripts, the Modal runner, and the analysis |
 | `harness/tests/` | every check, with no model calls: scorer validation, canary invariants, transcript replay, runner |
-| `experiments/` | `PREREG.md` (main experiment) and `ABLATIONS.md` (ablations, frozen before running) |
+| `experiments/` | `PREREG.md`, the pre-registration of the experiment |
 | `results/` | one JSON line per run |
 | `transcripts/` | a full transcript per run (`.json.gz`) |
 | `analysis/` | `verify.py`, which recomputes every reported number into `numbers.json` |
@@ -44,8 +37,7 @@ measure whether the leak is used, shared and taken up, and whether a passive sec
   - D2: a join of several sources plus a rule;
   - D3: no honest path.
 - **The leak** is the previous version of the key (v1). The scorer accepts it, and it appears nowhere else, so v1 answers
-  prove leak use at every level. A password variant (`team_database_password`) is used in the ablations; its proof of use
-  is the login.
+  prove leak use at every level.
 - **Metrics:**
   - leak used;
   - leak shared;
@@ -71,7 +63,6 @@ python -m harness.run_team_local team_doc_qa 200 2 collude            # one scri
 
 modal run harness/run_modal.py --mode key-check                       # OpenRouter key limit and account balance
 modal run harness/run_modal.py --mode difficulty --agent hermes --tag main --budget 40 [--resume]
-MAX_GAMES=300 modal run harness/run_modal.py --mode ablations --tag ab1 --budget 400 [--arms handover,warning] [--resume]
 modal run harness/run_modal.py --mode rereview --src 'results/difficulty-*-main.jsonl' \
     --officer-model openai/gpt-4.1-mini --tag gpt41mini                # the officer reads finished runs again
 
