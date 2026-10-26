@@ -1,12 +1,12 @@
 # Fdb version 3
-["bibtex main"] 1793008195 "main.aux" "main.bbl" "main" 1793008197
+["bibtex main"] 1793009215 "main.aux" "main.bbl" "main" 1793009217
   "/usr/share/texlive/texmf-dist/bibtex/bst/natbib/plainnat.bst" 1233624470 26816 ffe5423d2019860bad9f54bc402fac15 ""
-  "main.aux" 1793008197 13591 f7fbc84e92067b7cb403b517ad2dfb0a "pdflatex"
+  "main.aux" 1793009217 13651 12dcfd3c4e3d1f778cfc269574f1766b "pdflatex"
   "references.bib" 1792978253 8927 38dafc620d31478c973a8fc59175bdaa ""
   (generated)
   "main.bbl"
   "main.blg"
-["pdflatex"] 1793008195 "main.tex" "main.pdf" "main" 1793008197
+["pdflatex"] 1793009215 "main.tex" "main.pdf" "main" 1793009217
   "/etc/texmf/web2c/texmf.cnf" 1711792186 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc" 1165713224 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/fontawesome5/fa5free0.enc" 1622837620 3083 a707712f77b073b3833e4b1334a30e99 ""
@@ -62,6 +62,7 @@
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb" 1248133631 35752 024fb6c41858982481f6968b5fc26508 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb" 1248133631 32762 224316ccc9ad3ca0423a14971cfa7fc1 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb" 1248133631 32569 5e5ddc8df908dea60932f3c484a54c0d ""
+  "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb" 1248133631 32587 1788b0c1c5b39540c96f5e42ccd6dae8 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb" 1248133631 32716 08e384dc442464e7285e891af9f45947 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/fontawesome5/FontAwesome5Free-Solid.pfb" 1622837620 295383 425769cf436959e0c2b23bd6a2316a48 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/oldstandard/OldStandard-Bold.pfb" 1608761588 334813 f2c0626fa44b012145ec41ed4fa6f8b2 ""
@@ -226,6 +227,7 @@
   "/usr/share/texlive/texmf-dist/tex/latex/microtype/mt-msb.cfg" 1635714533 5593 428f02443ecf7ba7329e84a32c80d72c ""
   "/usr/share/texlive/texmf-dist/tex/latex/multirow/multirow.sty" 1615845910 6149 2398eec4faa1ee24ff761581e580ecf1 ""
   "/usr/share/texlive/texmf-dist/tex/latex/natbib/natbib.sty" 1644012257 45458 f1c6cb3edd91174e966cbbaf88993bcf ""
+  "/usr/share/texlive/texmf-dist/tex/latex/needspace/needspace.sty" 1364856750 852 0e34dbb72efc69fa07602405ad95585e ""
   "/usr/share/texlive/texmf-dist/tex/latex/oldstandard/OldStandard.sty" 1608761588 1940 e9f580bb016b02aa1c6f6b89651253ff ""
   "/usr/share/texlive/texmf-dist/tex/latex/oldstandard/T1OldStandard-TLF.fd" 1608761588 3707 829a88ab25a570743d404b4e849e7cfd ""
   "/usr/share/texlive/texmf-dist/tex/latex/oldstandard/TS1OldStandard-TLF.fd" 1608761588 2221 e6b3db8ae8df8263431e3c03ce81a396 ""
@@ -285,13 +287,13 @@
   "generated/checks.tex" 1793007333 939 4931304c702203c1ede02827b87cdaac ""
   "generated/design.tex" 1793006657 1667 8bf21a18f6b0a5b3f3e5990718807104 ""
   "generated/honest_paths.tex" 1793006648 6559 ba2676c79bff62f9bbce81bc9f9698e5 ""
-  "generated/prompts.tex" 1793006648 7772 d7ffb44aaef7c1ea246ea0bb5c00a46e ""
+  "generated/prompts.tex" 1793008300 10902 21a87866746b38a9cf467fbf847842ae ""
   "generated/results.tex" 1793006657 10714 dfbd11cb92111f4f48425657f557286d ""
-  "main.aux" 1793008197 13591 f7fbc84e92067b7cb403b517ad2dfb0a "pdflatex"
-  "main.bbl" 1793008195 4878 9e5b5d500c5c70f5dc2edccb03a235dd "bibtex main"
-  "main.listing" 1793008196 139 a9f2e89a78684b16c383cd6bc1b0dc3a "pdflatex"
-  "main.out" 1793008197 5087 94e53fa7809afa74993e1f88d797122a "pdflatex"
-  "main.tex" 1793008193 45820 c57c1cc6885efca26544fa2b5be36c00 ""
+  "main.aux" 1793009217 13651 12dcfd3c4e3d1f778cfc269574f1766b "pdflatex"
+  "main.bbl" 1793009215 4878 9e5b5d500c5c70f5dc2edccb03a235dd "bibtex main"
+  "main.listing" 1793009217 139 a9f2e89a78684b16c383cd6bc1b0dc3a "pdflatex"
+  "main.out" 1793009217 4877 49ceacd347b1bb14c6ff7e59f87d8727 "pdflatex"
+  "main.tex" 1793009213 45631 591a1f9b921260e3e5730c6cba8bd49a ""
   (generated)
   "main.aux"
   "main.listing"

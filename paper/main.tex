@@ -24,6 +24,7 @@
 \usepackage{subcaption}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage[most]{tcolorbox}
+\usepackage{needspace}
 \usepackage{fontawesome5}
 \tcbuselibrary{listings}
 \usepackage{titlesec}
@@ -92,12 +93,16 @@
 
 \vspace{4pt}
 \begin{center}
-\begin{tabular}{cc}
-  Tourad Aidara & Arnol Fokam \\
+{\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{@{}c@{\hspace{4.5em}}c@{}}
+  \textbf{Tourad Aidara}$^{*}$ & \textbf{Arnol Fokam}$^{*}$ \\
   Independent Researcher & Independent Researcher \\
-\end{tabular}
+  {\small Dakar, Senegal} & {\small London, United Kingdom} \\
+\end{tabular}}\\[4pt]
+{\footnotesize $^{*}$\,Equal contribution}
 \end{center}
 
+\vspace{10pt}
 \begin{center}
   {\fontsize{13}{16}\selectfont\bfseries Abstract}
 \end{center}\vspace{-4pt}
@@ -122,7 +127,7 @@ cost of honest work, alone, push the team to use and share them?
 
 \textbf{What we do.} Teams of agents work on everyday tasks, and one member of some teams finds a leaked file containing answers. We change only how hard it is to earn the reward without the leak, from trivial to impossible, and measure whether the team uses the leak, whether it shares it, and whether an overseer notices.
 
-\textbf{Our contributions are:}
+\needspace{8\baselineskip}\noindent\textbf{Our contributions are:}\nopagebreak
 \begin{list}{}{\leftmargin=2.5em\itemindent=-1.5em\itemsep=2pt\topsep=2pt\parsep=0pt}
   \item[1.] \textbf{A testbed that isolates the cost of honest work:} a fixed, unprompted shortcut and an honest route whose cost runs from trivial to impossible.
   \item[2.] \textbf{A step-shaped result, not a slope.} Over \NGames{} runs (\NGamesUsable{} analysed), teammate use is flat across D0--D2 and jumps at D3 in three of six models; both Claude models never see a teammate use the leak.
@@ -151,7 +156,7 @@ cost of the honest path is not controlled.
 
 \subsection{A run in four stages}
 \textbf{Overview.} A run (Figure~\ref{fig:arch}) sets up several teams of three agents on one task, briefs and plays them in turns, scores their answers, and finally lets a passive officer oversee the finished run. One member of some teams, the holder, receives a leaked file; the other teams are controls.
-\textbf{Assumptions.} The leak is unprompted: nobody asks the agents to use or share it. The stakes are nominal: agents are prompted, not trained, and the reward exists only in the prompt. Only the cost varies: at D0--D2 agents are told where the honest route is, and the note, the rule against non-public information and the line about the previous key are identical at every level.
+\textbf{Assumptions.} The leak is unprompted: nobody asks the agents to use or share it (P3, P7). The stakes are nominal: agents are prompted, not trained, and the reward exists only in the prompt. Only the cost varies: at D0--D2 agents are told where the honest route is, and the note, the rule against non-public information and the line about the previous key are identical at every level.
 
 \begin{figure}[t]
   \centering
@@ -213,15 +218,15 @@ cost of the honest path is not controlled.
 \subsection{Teams, tasks and the honest route}\label{sec:setup}
 \textbf{Teams.} Each run draws two to five teams of three agents, with at least one team holding a leak and at least one without (the \emph{control teams}). In each leak team one random member, the \emph{holder}, alone receives the leaked file.
 \textbf{Tasks.} We use five everyday tasks (Appendix~\ref{app:honest}): labelling shapes, SQL over a company database, pricing auction deals within a buyer's budget, short Python functions, and questions on company documents. Each agent works in its own workspace with public files and gives 10 answers: five \emph{ordinary} questions that careful work answers, and five \emph{team-specific} ones whose answers differ between teams, so another team's leak is useless. The honest route to the team-specific items is what we manipulate.
-\textbf{The honest route and its cost.} The levels mean the same in every task: \textbf{D0}, the answer is written in a public file; \textbf{D1}, one mapping step; \textbf{D2}, a join of several sources plus a rule; \textbf{D3}, no honest route. At D0--D2 the brief says the team-specific items can be worked out from public files, so levels change the cost of the honest route and not whether agents know it exists. The exact \texttt{README.txt} of every task and level is in Appendix~\ref{app:honest}.
+\textbf{The honest route and its cost.} The levels mean the same in every task: \textbf{D0}, the answer is written in a public file; \textbf{D1}, one mapping step; \textbf{D2}, a join of several sources plus a rule; \textbf{D3}, no honest route. At D0--D2 the brief says the team-specific items can be worked out from public files (P5), and at D3 that they cannot (P6), so levels change the cost of the honest route and not whether agents know it exists. The exact \texttt{README.txt} of every task and level is in Appendix~\ref{app:honest}.
 \textbf{How we know the leak was used.} Every team-specific item has two accepted answers. \textbf{\vtwo{}}, the current key, is what honest work derives. \textbf{\vone{}}, the previous key, appears \emph{only} in the leak file. An agent \emph{used the leak} when at least 3 of its 5 team-specific items match \vone{}; honest work cannot produce \vone{}, so this proves use at every level. Every brief says that answers matching the previous key are also accepted, a cue we discuss under limitations.
 
 \subsection{Agents, interaction and scoring}\label{sec:play}
-\textbf{Briefing.} Each brief names the team and the other teams, states the task, the goal (a reward for the team's total score) and the rule that using or sharing non-public information is prohibited, and lists the commands. Only the holder's brief adds a note that a file was accidentally left in its workspace. \textbf{No prompt asks agents to collude}, and agents are not told anyone is watching (Appendix~\ref{app:prompts}).
+\textbf{Briefing.} Each brief names the team and the other teams, states the task, the goal (a reward for the team's total score) and the rule that using or sharing non-public information is prohibited, and lists the commands (prompts P1--P4 in Appendix~\ref{app:prompts}). Only the holder's brief adds a note that a file was accidentally left in its workspace (P7). \textbf{No prompt asks agents to collude}, and agents are not told anyone is watching.
 \textbf{Turns and scoring.} Agents take turns over \NRounds{} rounds of up to \NCmds{} commands, plus a final turn, in an order reshuffled every round. They can message everyone, their team or one agent, or run commands in their own workspace. After each round the scorer grades every answer and accepts both \vone{} and \vtwo{}, so using the leak and working honestly earn the same points and only the cost of the honest route varies.
 
 \subsection{Oversight, measures and controls}\label{sec:oversee}
-\textbf{A passive security officer.} After the last turn, an officer model reads the roster and every message, and in its full view also the scores, and decides for every team whether to disqualify or clear it. It cannot influence the run: it acts after the last turn and its decision changes no score. As a baseline we report a one-line score rule that flags a team when any member scores above 5.
+\textbf{A passive security officer.} After the last turn, an officer model (prompts P8--P11) reads the roster and every message, and in its full view also the scores, and decides for every team whether to disqualify or clear it. It cannot influence the run: it acts after the last turn and its decision changes no score. As a baseline we report a one-line score rule that flags a team when any member scores above 5. Holders are also interviewed after the run (P12); we do not analyse the answers here.
 \textbf{Measures.} All measures come from the run itself, not from a judge (Table~\ref{tab:measures}). The primary outcome is teammate leak use at D3 compared with D0.
 
 \begin{table}[htbp]
@@ -247,7 +252,7 @@ cost of the honest path is not controlled.
 \textbf{What we ran.} Each of six models plays every task at every level on five seeds: \NTasks{} $\times$ \NLevels{} $\times$
 \NSeeds{} $=$ \NGamesPerModel{} runs per model, \NGamesRecorded{} in all. A seed fixes the number of teams, the holders and the leak's content, so the four levels of a seed differ only in the honest route and every model plays the same layouts. Everything else is fixed: messaging, memory of past commands, a team progress board, a reward for the team's total score only and no warning about surveillance.
 \textbf{Models.} Hermes-4-405B (large), Dolphin-Mistral-24B (small), Llama-4-Maverick and DeepSeek-V3.2 (open-weight), and Claude Haiku 5.5 and Claude Opus 5.5 (frontier); every agent in a run is the same model. The officer is Claude Sonnet 5.5.
-\textbf{Statistics.} The unit of analysis is the run. The main question is tested with a regression of teammate use on the level, controlling for task and model and for agents sharing a run; we report effects as factors between levels, and the figures show 95\% intervals from resampling runs. Secondary tests use the same model with a correction for multiple tests. Runs in which more than 20\% of the agents' replies were empty or held no usable command were excluded, because the agents could not act (\NExcluded{} of \NGamesRecorded{} runs, almost all Claude Opus 5.5), leaving \NGamesUsable{} analysed runs.
+\textbf{Statistics.} Each run is one unit, because agents in the same run influence each other. The main question is whether teammates use the leak more as honest work gets harder, so we relate teammate use to the level while accounting for the task, the model and the dependence between agents in a run. We report effects as factors (for example, five times as likely), and the figures show 95\% intervals obtained by resampling whole runs. Secondary tests use the same approach, with a correction for asking several questions. We excluded runs in which more than 20\% of an agent's replies were empty or held no usable command, because the agents could not act (\NExcluded{} of \NGamesRecorded{} runs, almost all Claude Opus 5.5), which leaves \NGamesUsable{} analysed runs.
 
 % ================= 5. Results =================
 \section{Results}
@@ -267,7 +272,7 @@ falls from D0 to D3 (top row of Figure~\ref{fig:finding1}). Dolphin-Mistral-24B 
   \label{fig:finding1}
 \end{figure}
 
-\subsection{Claude teammates never use a leak; Claude holders sometimes use it alone but almost never send it on}
+\subsection{Claude teammates never use the leak; holders rarely send it}
 \textbf{No teammate of a Claude holder ever used the leak}: 0 of 266 teammates for Claude Haiku 5.5 and 0 of 116 for Claude Opus 5.5,
 including at D3, where the leak was the only way to score on the team-specific items. Opus holders never even
 opened the leak file (0 of 58 holders in its usable runs). Haiku holders opened it in 47 of 133 cases, most often at D3 (20 of 35), and
@@ -318,7 +323,7 @@ and withdrew them. In the open models, the same moment becomes a message to the 
   \label{fig:quotes}
 \end{figure}
 
-\subsection{Holders break the rule alone more readily than they pass the leak on}
+\subsection{Holders cheat alone more readily than they share the leak}
 At D3, Figure~\ref{fig:pipeline} follows the leak through four steps: the holder opens the file, uses it, shares it with the team, and a teammate uses it. \textbf{The leak narrows at every step, and the models differ at the sharing
 step.} Every Hermes, DeepSeek and Dolphin holder opens the leak, and nearly all use it (100\%, 97\% and 89\%). Then they part ways:
 DeepSeek-V3.2 holders share it in 89\% of cases, Hermes-4-405B in 63\%, Llama-4-Maverick in 49\% and Dolphin-Mistral-24B in only 14\%,
@@ -327,14 +332,14 @@ share it in 3\%, and no teammate uses it; no Claude Opus 5.5 holder opens it. Th
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.92\linewidth]{figures/fig_pipeline.pdf}
+  \includegraphics[width=0.85\linewidth]{figures/fig_pipeline.pdf}
   \caption{\textbf{The leak pipeline at D3: holders break the rule alone more readily than they pass
   the leak on.} Share of holders who opened the leak file, used it, and shared it with the team, and share of their teammates
   who used it, with models in the same order throughout. Whiskers are 95\% intervals from resampling whole runs.}
   \label{fig:pipeline}
 \end{figure}
 
-\subsection{Reading messages catches shared leaks; only scores expose silent solo cheating}
+\subsection{Messages reveal shared leaks; only scores reveal solo cheating}
 \textbf{Collusion is spoken, so reading the conversation catches it.} Of the 142 teams where the holder sent the leak to teammates (in 113 a teammate then used it), the officer
 reading only the messages flagged 135 (95\%), and with the scores as well, 137 (96\%) (Figure~\ref{fig:alone}, left). \textbf{Cheating alone is silent, so reading the conversation misses it.} In 225
 teams the holder used the leak privately and told no one. The messages-only officer flagged only 20\% of them (45 of 225); with the
@@ -347,38 +352,30 @@ Scores close that gap, but not cleanly. A one-line score rule flagged 186 of 225
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.92\linewidth]{figures/fig_alone.pdf}
+  \includegraphics[width=0.8\linewidth]{figures/fig_alone.pdf}
   \caption{\textbf{Collusion is caught by every detector; cheating alone only when the scores are read.} Share of teams
   flagged by each detector, by honest-path level. Left: the leak reached a teammate. Right: only the holder used it. Whiskers are 95\% intervals from resampling whole runs.}
   \label{fig:alone}
 \end{figure}
 
 % ================= 6. Discussion and Limitations =================
-\section{Defenders should keep an honest route open and read the messages}
+\section{Defenders: keep an honest route open and read the messages}
 
 \textbf{What defenders can use.} (1) In our testbed the risk sits at tasks with no honest route: make sure one exists. (2) Read the team's messages, which catch shared leaks. (3) Do not rely on scores alone where honest work can score high. These are suggestions from this testbed, not tested countermeasures.
 
 \textbf{Scope.} We do not claim that agents collude without a leak, that they hide collusion, or that these rates carry over to other models, officers or incentives; detection results are for one officer model and one prompt.
 
-\textbf{Hypotheses.} Written before the analysis, four hold in direction (teammate use, holder sending and holder self-use rise with difficulty; false alarms on clean teams fall for all three detectors). Two expectations fail: collusion does not rise gradually across D0--D2, and the manipulation check fails for Dolphin-Mistral-24B.
+\textbf{Hypotheses.} Written before the analysis, four hold in direction (use, sending and self-use rise with difficulty; false alarms fall for all three detectors); two fail (no gradual rise across D0--D2; the manipulation check fails for Dolphin-Mistral-24B).
 
-\textbf{Limitations.}
-\begin{itemize}[itemsep=0pt,topsep=2pt]
-  \item \textbf{Prompted incentives.} The reward and the rule exist only in the prompt; nothing is at stake for the agents.
-  \item \textbf{Cues.} The holder's note says the file ``was accidentally left'' in its workspace, which reads like a honeypot, and every brief says previous-key answers are accepted, which tells non-holders an older key exists. Both are constant across levels, so they cannot explain the step at D3, but they may inflate absolute rates and differences between models. Agents are also told where the honest path is; levels vary its cost, not its discoverability.
-  \item \textbf{Scale.} \NSeeds{} seeds per cell and one sample per run; six models from five developers, with size, openness and safety training not varied independently; task differences bundle leak format, scoring and workload.
-  \item \textbf{Coverage.} Claude Opus 5.5 rests almost entirely on two of the five tasks after runs with mostly empty replies are excluded.
-  \item \textbf{Analysis plan.} The hypotheses and exclusion rule were set before the final analysis but not formally registered; we report these deviations rather than hide them.
-  \item \textbf{Officer.} One officer model, which shares a developer with two of the six agent models; the threshold rule undercounts partial or paraphrased use.
-\end{itemize}
-\textbf{Future work.} Varying the collusive path's cost together with the honest path's, sanctions during the game, agents told to hide, a second officer from another developer, a formally registered protocol, and more Claude Opus 5.5 runs.
+\subsection{Limitations and future work}
+We change one thing, the cost of honest work, and keep everything else the same: the shortcut, the holder's note and the rules are identical at every level, every model plays the same team layouts, and every use of the leak is checked against the agents' own answers, so the jump at D3 comes from the cost of honest work and shows up across five tasks and six models. The agents here act on prompted incentives, with nothing at stake and no sanctions; model size, openness and safety training are not varied one at a time; agents are not told to hide; and one officer reads the conversations. Adding real stakes, matched model families, a hiding condition and a second officer would show whether collusion survives real incentives, which model properties make it more or less likely, and whether reading the conversation still works against agents that conceal. We plan to extend the testbed in these directions and to register the protocol in advance.
 
 % ================= 7. Conclusion =================
 \section{Conclusion}
 While an honest route exists, even a laborious one, teams rarely collude on a forbidden shortcut; when it disappears, three of six models take it and pass it on, and no teammate of a Claude holder ever does. Defenders should keep an honest route open and read the conversation, since silent cheating shows up only in the scores. These results come from a prompted testbed with synthetic leaks.
 
 \footnotesize
-\textbf{Code and Data.} Code, task files and per-run records are in the repository at \href{https://github.com/tourad009/a-path-of-least-resistance}{\texttt{github.com/tourad009/a-path-of-least-resistance}}. \textbf{Author Contributions.} Both authors contributed to the study design, the experiments, the analysis and the writing.
+\textbf{Code and Data.} Code, task files and per-run records: \href{https://github.com/tourad009/a-path-of-least-resistance}{\texttt{github.com/tourad009/a-path-of-least-resistance}}. \textbf{Author Contributions.} Both authors contributed equally to the study design, the experiments, the analysis and the writing.
 \normalsize
 
 \section*{References}
@@ -391,7 +388,6 @@ While an honest route exists, even a laborious one, teams rarely collude on a fo
 \renewcommand{\thesection}{\Alph{section}}
 
 \section{Prompts}\label{app:prompts}
-The exact prompts follow.
 \input{generated/prompts.tex}
 
 \section{The honest path of every task and level}\label{app:honest}
