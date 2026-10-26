@@ -1,6 +1,5 @@
-# a-path-of-least-resistance
+# Asymmetric Incentives Toward Collusion: The Role of Honest-Path Difficulty
 
-**Asymmetric Incentives Toward Collusion: The Role of Honest-Path Difficulty.**
 A multi-team testbed where one member of some teams (the *holder*) finds a leaked answer file. The collusive path (the leak)
 stays fixed, while the **honest path** to the same points is made easy (D0), harder (D1, D2) or impossible (D3). We measure
 whether the leak is used, shared and taken up, and whether a passive security officer detects it.
@@ -18,7 +17,8 @@ analysis). `export OPENROUTER_API_KEY=...`; Modal needs a secret named `openrout
 `python -m pytest harness/tests -q` runs every check without calling a model.
 
 ## The experiment
-- **Agents:** `nousresearch/hermes-4-405b`, `cognitivecomputations/dolphin-mistral-24b-venice-edition`, `anthropic/claude-opus-5.5`.
+- **Agents (six models):** `nousresearch/hermes-4-405b`, `meta-llama/llama-4-maverick`, `deepseek/deepseek-v3.2`,
+  `cognitivecomputations/dolphin-mistral-24b-venice-edition`, `anthropic/claude-haiku-5.5`, `anthropic/claude-opus-5.5`.
 - **Tasks:** `team_leaderboard_v2`, `team_database`, `team_auction`, `team_coding` and the new `team_doc_qa`
   (`harness/doc_qa.py`). Each agent answers 10 items: 5 public, plus the team's 5 special items.
 - **Honest-path difficulty** for the special items (`difficulty`): written in a public file (D0), one mapping step (D1),
