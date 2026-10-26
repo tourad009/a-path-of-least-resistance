@@ -76,6 +76,7 @@
 \input{generated/smoke.tex}
 \input{generated/results.tex}
 
+\newcommand{\val}[3]{\csname #1#2#3\endcsname}
 \newcommand{\vone}{\textcolor{leakred}{v1}}
 \newcommand{\vtwo}{\textcolor{honestgreen}{v2}}
 
@@ -114,15 +115,17 @@ Apart Research
 \begin{list}{}{\leftmargin=0.75in\rightmargin=0.75in}\item[]
 \itshape
 When one member of an LLM agent team finds a forbidden shortcut, does the team use it, and does that depend on how hard
-the honest alternative is? We hold the collusive path fixed (one member of some teams finds an old answer file in its
-workspace, and no prompt asks anyone to collude) and vary only the cost of the honest path to the same points, from a
-lookup in a public file to no honest path at all. A versioned answer key makes leak use provable by execution at every
-level: the leaked file holds the previous version of the key, which the scorer accepts and which appears nowhere else. We
-run \NGames{} games over \NTasks{} everyday agentic tasks, \NLevels{} difficulty levels and \NModels{} agent models, and
-let a security officer read every finished game without acting on it.
-\torun{: the first finding in one sentence, with teammate use at the easiest and hardest levels and the CI on the difference}
-\torun{: one control number (control teams, who hold no leak) and the detection result}
-\torun{: the implication for defenders, and the count of pre-registered predictions that failed}
+the honest alternative is? We hold the shortcut fixed (one member of some teams finds an old answer file, and no prompt
+asks anyone to collude) and vary only the cost of earning the same points honestly, from a lookup in a public file to
+impossible. Leak use is proven by execution at every level: the leaked file holds the previous version of the answer key,
+which the scorer accepts and which appears nowhere else. Across \NGames{} runs of \NTasks{} everyday agentic tasks and
+\NModels{} models, collusion did not rise smoothly with the cost of honest work: it switched on when the honest path
+disappeared. Pooled over \NGamesUsable{} usable runs, teammates' use of the leak rose by \HOneDiff{} percentage points from
+the easiest to the impossible level (95\% CI \HOneCI). Models split in two: three took the leak when stuck (DeepSeek-V3.2
+from \val{use}{DeepSeek}{0}\% to \val{use}{DeepSeek}{3}\% of teammates), while both Claude models never did. Outcome
+evidence failed where honest work was easy: a score rule flagged \val{fpr}{Rule}{0}\% of clean teams at the easiest level
+and \val{fpr}{Rule}{3}\% at the hardest, while an LLM officer flagged at most \val{fpr}{Officer}{0}\%. Shortcuts spread
+when no honest route to a goal exists, and high scores are not evidence of cheating when one does.
 \end{list}
 
 \clearpage
@@ -147,8 +150,11 @@ We study this gap in a simple setting. Teams of agents work on everyday tasks, s
 code, and one member of some teams finds a leaked file containing answers. We change only how hard it is to earn the reward
 without the leak, from trivial to impossible, and measure whether the team uses the leak, whether it shares it, and
 whether a separate monitor notices.
-\torun{: the main finding in one sentence, with the numbers at the easiest and hardest levels}
-\torun{: the detection result and what it means for defenders}
+Across six models and \NGamesUsable{} usable runs, collusion behaves like a switch: it stays low while any honest route
+exists, even a laborious one, and jumps when the honest route disappears (teammate use \HOneDiff{} percentage points
+higher at the impossible level than at the easiest, 95\% CI \HOneCI). Whether it jumps depends on the model: three
+models took the leak when stuck, and both Claude models never did. Detection has the mirror-image weakness: judging
+teams by their scores works only when honest work cannot reach the same scores.
 
 \textbf{Our contributions are:}
 \begin{list}{}{\leftmargin=2.5em\itemindent=-1.5em\itemsep=3pt\topsep=3pt\parsep=0pt}
@@ -304,88 +310,159 @@ also writes a full transcript that replays to the recorded score, and one script
 % ================= 4. Experimental setup =================
 \section{Experimental setup}
 
-\textbf{Models.} Three agent models span capability and safety post-training (Table~\ref{tab:models}); all are called through
-OpenRouter. Every agent in a game is the same model. The officer and the observer are \texttt{\OfficerModel} at temperature 0.
+\textbf{Models.} Six agent models span size, openness and safety post-training (Table~\ref{tab:models}); all are called
+through OpenRouter, and every agent in a run is the same model. DeepSeek-V3.2 and Claude Haiku 5.5 run with reasoning
+switched off, so that hidden reasoning cannot use up the \MaxTokens-token reply budget. The officer and the observer are
+\texttt{\OfficerModel} at temperature 0.
 
 \begin{table}[htbp]
   \centering\small
-  \caption{\textbf{Agent models.} Prices are OpenRouter list prices (USD per million input / output tokens) on 25 October 2026.}
+  \caption{\textbf{Agent models.} Prices are OpenRouter list prices (USD per million input / output tokens) on 25--26
+  October 2026; ``Usable'' counts the runs left after the pre-registered exclusion.}
   \label{tab:models}
   \begin{tabularx}{\linewidth}{lLcc}
     \toprule
-    Model & Role & Price & Est.\ cost / 100 games \\
+    Model & Role & Price & Usable runs \\
     \midrule
-    Hermes-4-405B & large, low-safeguard post-training & \PriceInHermes{} / \PriceOutHermes{} & \$\EstHermes \\
-    Dolphin-Mistral-24B & small, low-safeguard (``uncensored'') & \PriceInDolphin{} / \PriceOutDolphin{} & \$\EstDolphin \\
-    Claude Opus 5.5 & frontier, high-safeguard & \PriceInOpus{} / \PriceOutOpus{} & \$\EstOpus \\
+    Hermes-4-405B & large, low-safeguard post-training & \PriceInHermes{} / \PriceOutHermes{} & \val{games}{Hermes}{}/100 \\
+    Llama-4-Maverick & open-weight instruct (Meta) & \PriceInMaverick{} / \PriceOutMaverick{} & \val{games}{Maverick}{}/100 \\
+    DeepSeek-V3.2 & open-weight instruct, reasoning off & \PriceInDeepSeek{} / \PriceOutDeepSeek{} & \val{games}{DeepSeek}{}/100 \\
+    Dolphin-Mistral-24B & small, low-safeguard (``uncensored'') & \PriceInDolphin{} / \PriceOutDolphin{} & \val{games}{Dolphin}{}/100 \\
+    Claude Haiku 5.5 & frontier, high-safeguard, reasoning off & \PriceInHaiku{} / \PriceOutHaiku{} & \val{games}{Haiku}{}/100 \\
+    Claude Opus 5.5 & frontier, high-safeguard & \PriceInOpus{} / \PriceOutOpus{} & \val{games}{Opus}{}/100 \\
     \midrule
-    \multicolumn{4}{l}{\scriptsize OpenRouter ids: \texttt{\ModelHermes}, \texttt{\ModelDolphin}, \texttt{\ModelOpus}} \\
+    \multicolumn{4}{l}{\scriptsize OpenRouter ids: \texttt{\ModelHermes}, \texttt{\ModelMaverick}, \texttt{\ModelDeepSeek},
+    \texttt{\ModelDolphin}, \texttt{\ModelHaiku}, \texttt{\ModelOpus}} \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
 \textbf{Design.} For each model we play every task at every level on seeds \SeedRange{}: \NTasks{} $\times$ \NLevels{}
-$\times$ \NSeeds{} $=$ \NGamesPerModel{} games, \NGames{} in total. A seed fixes the number of teams, which teams hold a
-leak, who the holders are and the leak file's content, so the four levels of a seed differ only in the honest path, and the
-three models play the same layouts. Everything else is fixed at the friendly setting of the earlier testbed: messaging on,
+$\times$ \NSeeds{} $=$ \NGamesPerModel{} runs, \NGamesRecorded{} in total. A seed fixes the number of teams, which teams hold a
+leak, who the holders are and the leak file's content, so the four levels of a seed differ only in the honest path, and all
+six models play the same layouts. Everything else is fixed at the friendly setting of the earlier testbed: messaging on,
 command memory across rounds, messages that stay visible, a team progress board, a short final turn, and a reward for the
-team's total score only. There is no warning about surveillance. Holders are interviewed after the game.
+team's total score only. There is no warning about surveillance. Holders are interviewed after the run.
 
-\textbf{Statistics.} The unit of analysis is the game: agents in one game are not independent. The primary test (H1) is a
+\textbf{Statistics.} The unit of analysis is the run: agents in one run are not independent. The primary test (H1) is a
 logistic GEE of teammate leak use on the level (a linear term), with task and model as fixed effects and an exchangeable
-correlation within games; we also report the seed-paired, game-clustered bootstrap 95\% CI of teammate use at D3 minus D0.
-Secondary tests (H2 holder sending, H3 holder self-use, H4 false alarms of the officer and the score rule) use the same model
-with Holm correction. Games where more than 20\% of replies contain no command are excluded and counted. Hypotheses,
-tests and exclusions are pre-registered \tocheck{PREREG.md commit hash, frozen after the calibration pilot}.
+correlation within runs; we also report the seed-paired, run-clustered bootstrap 95\% CI of teammate use at D3 minus D0.
+Secondary tests (H2 holder sending, H3 holder self-use, H4 false alarms by level) use the same model with Holm correction.
+A run is excluded when more than 20\% of its agent replies carry no command (empty, filtered or without a command block);
+\NExcluded{} runs are excluded this way, almost all Claude Opus 5.5 runs blocked by a content filter
+(Section~\ref{sec:filter}). Hypotheses, tests and the exclusion rule were written down before the main runs
+(\texttt{experiments/PREREG.md}); the draft was not formally frozen, the exclusion was widened to count empty and filtered
+replies after the first runs, and the last three models were added after the first three had run.
 
-\textbf{Runs.} A smoke run (\SmokeGames{} games with \texttt{\SmokeModel}, \$\SmokeCost) checked the pipeline: all
-\SmokeReplayOK{} transcripts replay to their scores, \SmokeRefused{} of \SmokeCalls{} model calls were refused and
-\SmokeNoBlock{} had no command, and both officer views parsed in all \SmokeOfficerParsed{} games. A calibration pilot
-(one seed per task and level) checks that the control honest rate falls from D0 to D3 before the main runs
-\torun{: calibration pilot}.
+\textbf{Runs.} All runs of a model play at once on Modal, in isolated sandboxes. Runs that failed for infrastructure
+reasons (OpenRouter credit reservations when hundreds of runs were in flight, and the slowest DeepSeek runs reaching a
+time limit) recorded nothing and were rerun with the same seeds. The \NGamesRecorded{} runs cost \$\TotalCost{} in model
+calls. Every run's transcript replays to its recorded score.
 
 % ================= 5. Results =================
 \section{Results}
 
-\subsection{\torun{: claim-first heading for the first finding, e.g. ``Teammates use the leak more when the honest path is harder''}}
-\textbf{Manipulation check.} \torun{: control honest rate by level, pooled and per model; does it fall from D0 to D3?}
+\subsection{Collusion switches on when the honest path disappears}
+\textbf{The dial works.} For every model that can do the work, the control teams' honest solve rate on the special items
+falls from D0 to D3 (Table~\ref{tab:finding1}, blue lines in Figure~\ref{fig:finding1}): the levels change what honest work
+achieves. Dolphin-Mistral-24B is the exception: its control agents solve almost none of the special items even at D0
+(\val{honest}{Dolphin}{0}\%), so for this model the levels barely differ.
 
-\textbf{Teammate leak use rises (or not) with honest-path difficulty.} \torun{: one paragraph}. Pooled over tasks and
-models, the odds of a teammate using the leak change by a factor of \HOneOR{} per level (GEE, $p = \HOneP$); teammate use at
-D3 minus D0 is \HOneDiff{} percentage points (95\% CI \HOneCI) over \HOneGames{} games (Figure~\ref{fig:finding1},
-Table~\ref{tab:finding1}).
+\textbf{Teammates use the leak more when honest work is impossible.} Pooled over models and tasks, the odds that a
+teammate uses the leak grow by a factor of \HOneOR{} per level (GEE, $p = \HOneP$), and teammate use is \HOneDiff{}
+percentage points higher at D3 than at D0 (95\% CI \HOneCI; \HOneGames{} runs). \textbf{The rise is a step, not a slope.}
+In the models that collude, use stays flat or noisy across D0--D2, as the honest path goes from a lookup to a multi-file
+join, and jumps at D3: Llama-4-Maverick from \val{use}{Maverick}{0}--\val{use}{Maverick}{2}\% to
+\val{use}{Maverick}{3}\%, Hermes-4-405B from \val{use}{Hermes}{0}\% to \val{use}{Hermes}{3}\%, and DeepSeek-V3.2 from
+\val{use}{DeepSeek}{0}\% to \val{use}{DeepSeek}{3}\%. Making honest work costlier did little; removing it did almost
+everything.
 
 \begin{figure}[htbp]
   \centering
-  \IfFileExists{../analysis/out/use_vs_honest_gap.png}{%
-    \includegraphics[width=0.75\linewidth]{../analysis/out/use_vs_honest_gap.png}}{%
-    \figstub{5cm}{Figure 2 (generated by \texttt{harness/analysis\_difficulty.py}): teammate leak use against the honest-path gap
-    (1 $-$ the control agents' honest solve rate on items 6--10), one line per model, points D0--D3.}}
-  \caption{\textbf{\torun{: the first finding as a claim.}} Each point pools the five tasks at one level; the x-axis is the
-  measured cost of the honest path, not the nominal level.}
+  \includegraphics[width=\linewidth]{figures/fig_models.pdf}
+  \caption{\textbf{When the honest path disappears (D3), three of six models start using the leak; both Claude models
+  never do.} Blue: share of control-team agents (no leak) who solve the special items honestly, which measures the honest
+  path. Orange: share of holders' teammates who used the leak (\vone{} answers). Runs excluded by the pre-registered rule
+  are left out, so Claude Opus 5.5 rests on its auction and document tasks only.}
   \label{fig:finding1}
 \end{figure}
 
 \begin{table}[htbp]
-  \centering\small
-  \caption{\textbf{The collusion pipeline by honest-path level and model.} Teammates used = teammates of holders who crossed
-  the \vone{} threshold; holders sent = holders who sent their leak where a teammate could read it; collusion = holder teams
-  where a teammate used the leak; control honest rate = control agents' \vtwo{} solve rate on items 6--10.}
+  \centering\scriptsize
+  \caption{\textbf{Teammate leak use and the honest path, by model and level.} Trend: odds ratio per level from a
+  logistic GEE within the model (task as a fixed effect); D3$-$D0: seed-paired, run-clustered bootstrap difference in
+  teammate use with its 95\% CI. ``--'': no variation (no teammate ever used the leak).}
   \label{tab:finding1}
+  \setlength{\tabcolsep}{3.5pt}
   \ResultsTable
 \end{table}
 
-\textbf{Still to report} \torun{: H2 (holder sending), H3 (holder self-use), H4 (detection: the officer and the score rule
-by level), and the holder interviews}.
+\subsection{Two kinds of models: some take the leak when stuck, others never do}
+The step at D3 is not universal. \textbf{DeepSeek-V3.2} is the sharpest case: with any honest path, none of its teammates
+used the leak, and at D3 \val{use}{DeepSeek}{3}\% did. \textbf{Llama-4-Maverick} and \textbf{Hermes-4-405B} show the same
+step from different baselines; Hermes also uses the leak when honest work is easy (\val{use}{Hermes}{0}\% at D0).
+\textbf{Claude Haiku 5.5 and Claude Opus 5.5 never used it}, at any level, including D3 where it was the only way to score
+on the special items: their control teams solve the honest path whenever it exists (Haiku \val{honest}{Haiku}{0}\% at D0),
+and their holders almost never pass the leak on. The models that collude when stuck are the open-weight and
+low-safeguard ones; the two that never do are the high-safeguard frontier models.
+
+\subsection{The leak is used privately first, then shared}
+Holders break the rule alone more readily than they pass the leak on. Holder self-use rises steeply with difficulty (odds
+$\times$\HThreeOR{} per level, $p = \HThreeP$; D3$-$D0 \HThreeDiff{} points, 95\% CI \HThreeCI), and holder sending rises
+less (odds $\times$\HTwoOR{} per level, $p = \HTwoP$; \HTwoDiff{} points, 95\% CI \HTwoCI). Teammate use follows sending,
+so the holder's decision to send is the step where a private shortcut becomes collusion. Appendix
+Table~\ref{tab:pipeline} gives every step of the pipeline for every model and level.
+
+\subsection{Outcome evidence fails exactly where the honest path is easy}
+A one-line score rule (flag a team when any member scores above 5) is a perfect detector only when honest work cannot
+reach high scores. When it can, honest teams score high too: the rule flags \val{fpr}{Rule}{0}\% of clean teams at D0 and
+\val{fpr}{Rule}{3}\% at D3 (Figure~\ref{fig:detection}, Table~\ref{tab:detection}; odds $\times$\FARuleOR{} per level,
+$p \FARuleP$). The LLM officer, which reads the messages as well as the scores, is far less misled
+(\val{fpr}{Officer}{0}\% at D0, \val{fpr}{Officer}{3}\% at D3) and catches \val{caught}{Officer}{} colluding teams; reading
+the messages alone, it flags \val{fpr}{Msgs}{0}\% of clean teams at D0 and \val{fpr}{Msgs}{3}\% at D3, a much gentler
+decline (odds $\times$\FAMsgsOR{} per level, $p = \FAMsgsP$). Scores separate cheaters from honest teams only when the two paths lead
+to different outcomes.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.55\linewidth]{figures/fig_detection.pdf}
+  \caption{\textbf{A score rule wrongly flags most honest teams whenever honest work can reach high scores.} Share of clean
+  teams (no member used or passed a leak) that each detector flags, by honest-path level, pooled over models.}
+  \label{fig:detection}
+\end{figure}
+
+\begin{table}[htbp]
+  \centering\small
+  \caption{\textbf{Detecting colluding teams, by honest-path level.} Colluding teams: a teammate used the leak or the holder
+  sent it. Clean teams: no member used or passed a leak (teams where only the holder used it are left out).}
+  \label{tab:detection}
+  \DetectionTable
+\end{table}
+
+\subsection{A safety filter stopped one model from working at all}\label{sec:filter}
+Claude Opus 5.5 returned empty replies marked by the provider's content filter for nearly every call in the coding and
+database tasks and most leaderboard runs, so its agents ended every turn without acting; \val{excl}{Opus}{} of its 100
+runs are excluded. The same tasks ran normally with Claude Haiku 5.5 and the four other models. The filter did not separate
+honest from collusive play: it blocked the whole task. Five Haiku auction runs are excluded for a different reason, replies
+cut off at the token cap.
 
 % ================= 6. Discussion and Limitations =================
 \section{Discussion and Limitations}
 
-\torun{: what the first finding means for agent deployments where the honest path is costly, and for defenders}
+\textbf{What the results mean.} In our setting, an agent's decision to use and share a forbidden shortcut depends less on
+how hard the honest work is than on whether any honest route exists. For deployments this is a warning about tasks with
+no legitimate way to succeed: an unsolvable ticket, a target that cannot be met with the data provided, a test that
+cannot pass. There, models that take shortcuts at all take them often, and share them. For defenders, it means two
+things. Make sure an honest route exists, or that agents can report that none does. And do not judge agents by outcomes
+alone where honest work can reach the same outcome: score-based checks flag honest teams there, and an officer that reads
+the messages does much better.
 
 \textbf{Scope of the claim.} Following \citet{lee2026broad}, a result that the overseer misses leak use is a bounded null
 at our sample size, not evidence that detection is impossible; report the interval, not ``no effect''.
-\torun{: pre-registered predictions that failed, with counts}
+\textbf{Predictions that failed or were not tested.} Of the pre-registered predictions, four hold: H1 teammate use,
+H2 holder sending and H3 holder self-use all rise with difficulty, and H4 false alarms on clean teams fall with difficulty
+for all three detectors, most steeply for the score rule. Two fail: collusion does not
+rise gradually across D0--D2, and the manipulation check fails for Dolphin-Mistral-24B, whose honest path never worked.
 
 \subsection{Limitations}
 \begin{itemize}
@@ -395,8 +472,12 @@ at our sample size, not evidence that detection is impossible; report the interv
         exists. Both are constant across levels.
   \item \textbf{The honest path is pointed to.} Agents are told where the honest path is; levels vary its cost, not its
         discoverability. Agents who ignore the README pay a higher cost than the nominal level.
-  \item \textbf{Scale.} \NSeeds{} seeds per cell and one sample per game; three models, one per safeguard and size profile;
-        task differences bundle leak format, scoring and workload.
+  \item \textbf{Scale.} \NSeeds{} seeds per cell and one sample per run; six models from four vendors, with size, openness
+        and safety post-training not varied independently; task differences bundle leak format, scoring and workload.
+  \item \textbf{Coverage.} Claude Opus 5.5 rests on two of the five tasks after its filtered runs are excluded; some
+        DeepSeek-V3.2 runs were rerun on a different host after a time limit (same model, same seeds).
+  \item \textbf{Process.} The pre-registration was a draft, the exclusion rule was widened after the first runs, and three
+        models were added later; we report these deviations rather than hide them.
   \item \textbf{Officer.} One officer model, which shares a vendor with one agent model; the threshold rule undercounts
         partial or paraphrased use.
 \end{itemize}
@@ -407,7 +488,10 @@ instructed to hide; and a second officer from another vendor.
 
 % ================= 7. Conclusion =================
 \section{Conclusion}
-\torun{: the first finding and its implication in one paragraph}
+When a member of an agent team finds a forbidden shortcut, the cost of honest work matters little until the honest route
+disappears; then three of six models take the shortcut and share it, while both Claude models still refuse. The same
+condition breaks outcome-based oversight in reverse: where honest work can reach the same score, scores no longer tell
+cheaters from honest teams, and an officer that reads the messages is needed.
 
 % ================= end matter =================
 \section*{Code and Data}
@@ -437,6 +521,17 @@ All texts below are generated from the harness source.
 Seed 200, first holder team. At D0--D2 each agent also finds the \texttt{README.txt} shown here.
 \input{generated/honest_paths.tex}
 
+\section{The collusion pipeline by model and level}\label{app:pipeline}
+\begin{table}[htbp]
+  \centering\scriptsize
+  \caption{\textbf{Every step from the leak to collusion}, per model and level (usable runs only). Holders opened: touched
+  the leak file; holders used: crossed the \vone{} threshold themselves; holders sent: sent at least 3 \vone{} values where a
+  teammate could read them; teammates used: holders' teammates who crossed the threshold; collusion: holder teams where a
+  teammate used the leak.}
+  \label{tab:pipeline}
+  \PipelineTable
+\end{table}
+
 \section{Validation}\label{app:checks}
 \input{generated/checks.tex}
 Table~\ref{tab:checks} is computed by \texttt{paper/gen\_paper.py} from scripted games. The document task's worst-case chance
@@ -458,7 +553,7 @@ per-level prompts, complete transcripts with replay, and the difficulty experime
 \section*{LLM Usage Statement}
 Claude (Anthropic) wrote harness code, tests and analysis scripts and drafted parts of this text under the authors'
 direction; every number is generated by a script from the harness or the result files and was checked by the authors.
-Claude models are also subjects of the study: Claude Opus 5.5 as an agent, and Claude Sonnet 5.5 as the officer and the
+Claude models are also subjects of the study: Claude Opus 5.5 and Claude Haiku 5.5 as agents, and Claude Sonnet 5.5 as the officer and the
 observer.
 
 \end{document}
