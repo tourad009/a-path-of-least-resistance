@@ -51,7 +51,7 @@ class LocalMap:
     """Plays games locally with scripted (stubbed) agents instead of on Modal."""
     def __init__(self): self.seen = []
 
-    def map(self, cfgs, return_exceptions=False):
+    def map(self, cfgs, return_exceptions=False, order_outputs=True):
         for c in cfgs:
             self.seen.append(c["game_id"])
             yield rm.play(c, [MemorySandbox() for _ in range(make_task(c).n_total)])
@@ -79,3 +79,71 @@ def test_resume_skips_finished_games_and_writes_transcripts(monkeypatch, tmp_pat
         p = tmp_path / r["transcript_path"]
         assert p.exists() and "transcript_b64" not in r
         assert replay(load(p))[1]
+
+
+def test_one_launch_plays_several_models_into_one_file_each(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(core, "chat", lambda *a, **k: "```bash\ndone\n```")
+    local = LocalMap()
+    monkeypatch.setattr(rm, "episode", local)
+    rm.main.info.raw_f(mode="difficulty", agent="hermes,opus", tasks="team_coding", levels="0", seeds=2, budget=1.0, tag="m")
+    for name in ("hermes-4-405b", "claude-opus-5.5"):
+        recs = [json.loads(l) for l in (tmp_path / "results" / f"difficulty-{name}-m.jsonl").open()]
+        assert len(recs) == 2 and all(r["cfg"]["agent"].endswith(name) for r in recs)
+    assert len(local.seen) == 4
+
+
+def test_longest_games_start_first():
+    cfgs = rm.build_difficulty_cfgs(["team_coding"], [0], 3, 200, rm.AGENTS["dolphin"]) + \
+           rm.build_difficulty_cfgs(["team_coding"], [0], 3, 200, rm.AGENTS["opus"])
+    order = rm.longest_first(cfgs)
+    assert [c["agent"] for c in order[:3]] == [rm.AGENTS["opus"]] * 3
+    sizes = [make_task(c).n_total for c in order[:3]]
+    assert sizes == sorted(sizes, reverse=True)
+
+
+class CostlyMap(LocalMap):
+    def map(self, cfgs, return_exceptions=False, order_outputs=True):
+        for r in super().map(cfgs, return_exceptions, order_outputs):
+            r["cost_usd"] = 0.6
+            yield r
+
+
+def test_budget_stops_the_run(monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(core, "chat", lambda *a, **k: "```bash\ndone\n```")
+    local = CostlyMap()
+    monkeypatch.setattr(rm, "episode", local)
+    rm.main.info.raw_f(mode="difficulty", agent="dolphin", tasks="team_coding", levels="0,1,2,3", seeds=1, budget=1.0, tag="b")
+    assert "STOP: budget" in capsys.readouterr().out and len(local.seen) == 2
+
+
+def test_failed_games_are_reported_and_left_for_resume(monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    class Failing:
+        def map(self, cfgs, return_exceptions=False, order_outputs=True):
+            for _ in cfgs: yield RuntimeError("sandbox refused")
+    monkeypatch.setattr(rm, "episode", Failing())
+    rm.main.info.raw_f(mode="difficulty", agent="dolphin", tasks="team_coding", levels="0", seeds=2, budget=1.0, tag="f")
+    out = capsys.readouterr().out
+    assert "2 failed" in out and "--resume" in out
+
+
+def test_rate_limits_are_retried_then_fail_loudly(monkeypatch):
+    """A 429 is retried; one that never clears raises APIFailure instead of returning an empty reply (read as done)."""
+    class R:
+        def __init__(self, code, body): self.status_code, self._b, self.headers = code, body, {}
+        ok = property(lambda self: self.status_code == 200)
+        text = property(lambda self: json.dumps(self._b))
+        def json(self): return self._b
+    good = {"choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}], "usage": {"cost": 0.01, "total_tokens": 5}}
+    calls = iter([R(429, {}), R(503, {}), R(200, good)])
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    monkeypatch.setattr(core.requests, "post", lambda *a, **k: next(calls))
+    monkeypatch.setattr(core.time, "sleep", lambda s: None)
+    out = core.chat_full("m", [], core.Cost())
+    assert out["content"] == "hi" and out["retries"] == 2
+    monkeypatch.setattr(core.requests, "post", lambda *a, **k: R(429, {}))
+    with pytest.raises(core.APIFailure):
+        core.chat_full("m", [], core.Cost(), retry_budget_s=0)

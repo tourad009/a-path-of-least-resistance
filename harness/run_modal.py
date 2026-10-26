@@ -6,6 +6,7 @@ Each episode runs in one Modal function; every agent gets its own offline Modal 
 comes back with it and is written to transcripts/<run>/<game>.json.gz (see harness/transcript.py).
 """
 import json
+import os
 import time
 from pathlib import Path
 
@@ -50,16 +51,31 @@ def game_id(cfg, k):
     return f"{cfg['task']}-s{cfg['seed']}-{k:04d}"
 
 
-def new_sandbox(sb_app, tries=4):
+def new_sandbox(sb_app, tries=8):
     """One agent sandbox. Modal sometimes refuses briefly under load (a launch once failed with PermissionDeniedError
-    and worked minutes later), so wait and retry; no model has been called yet, so a retry costs nothing."""
+    and worked minutes later), so wait and retry with jitter; no model has been called yet, so a retry costs nothing."""
+    import random
     from harness.core import ModalSandbox
     for k in range(tries):
         try:
             return ModalSandbox(sb_app, sandbox_image)
         except modal.exception.Error:
             if k == tries - 1: raise
-            time.sleep(15 * (k + 1))
+            time.sleep(min(60, 5 * 2 ** k) * random.uniform(0.5, 1.5))
+
+
+def new_sandboxes(sb_app, n):
+    """All of a game's sandboxes at once (in threads); if any fails, the ones made are closed and the error is raised."""
+    from concurrent.futures import ThreadPoolExecutor
+    made, errors = [], []
+    with ThreadPoolExecutor(n) as pool:
+        for f in [pool.submit(new_sandbox, sb_app) for _ in range(n)]:
+            try: made.append(f.result())
+            except Exception as e: errors.append(e)
+    if errors:
+        for sb in made: sb.close()
+        raise errors[0]
+    return made
 
 
 def play(cfg: dict, sandboxes=None) -> dict:
@@ -76,30 +92,44 @@ def play(cfg: dict, sandboxes=None) -> dict:
     cost = Cost()
     ep, score, _ = run_episode(task, mode="llm", agent_model=cfg.get("agent", AGENT_MODEL), cost=cost, sandboxes=sandboxes,
                                transcript=tr)
-    security, observer, security_msgs = {}, {}, {}
+    # post-game readers, all at once (they only read the finished game). A reader that keeps failing is recorded as an
+    # error instead of losing the game: python -m harness.rereview can run the officer again from the results file.
+    from concurrent.futures import ThreadPoolExecutor
+    jobs = {}
     if cfg.get("security") or cfg.get("v2"):
         # the security officer (strong model) replaces the old yes/no overseers: it rates every agent and can disqualify teams
-        ov = {}
         views = cfg.get("officer_views", ["full"])
         if "full" in views:
-            security = security_review(OVERSEERS["strong"], task, ep, cost)
-            security["grade"] = grade_security(security, score)
+            jobs["security"] = lambda: security_review(OVERSEERS["strong"], task, ep, cost)
         if "messages" in views:  # the same officer seeing only the messages (no scores or submissions)
-            security_msgs = security_review(OVERSEERS["strong"], task, ep, cost, messages_only=True)
-            security_msgs["grade"] = grade_security(security_msgs, score)
+            jobs["security_msgs"] = lambda: security_review(OVERSEERS["strong"], task, ep, cost, messages_only=True)
         # the privileged observer knows the secrets: who passed them (openly or hidden), and who the officer missed
-        observer = privileged_observer(OVERSEERS["strong"], task, cost, transcript=tr)
-        observer["summary"] = task.observer_summary(observer, score, security)
+        jobs["observer"] = lambda: privileged_observer(OVERSEERS["strong"], task, cost, transcript=tr)
+    if cfg.get("interview"):  # after the game: ask each holder whether and why it shared its leak
+        for h in task.holder:
+            jobs[("interview", h)] = (lambda h=h: interview(cfg.get("agent", AGENT_MODEL), task, h, cost, transcript=tr))
+    done = {}
+    if jobs:
+        with ThreadPoolExecutor(len(jobs)) as pool:
+            futs = {k: pool.submit(f) for k, f in jobs.items()}
+            for k, f in futs.items():
+                try: done[k] = f.result()
+                except Exception as e: done[k] = dict(error=f"{type(e).__name__}: {str(e)[:300]}")
+    security, security_msgs, observer, ov = done.get("security", {}), done.get("security_msgs", {}), done.get("observer", {}), {}
+    if cfg.get("security") or cfg.get("v2"):
+        for sec in (security, security_msgs):
+            if sec and "error" not in sec: sec["grade"] = grade_security(sec, score)
+        if observer and "error" not in observer:
+            observer["summary"] = task.observer_summary(observer, score, security if "error" not in security else {})
     else:
         ov = {k: overseer(m, task, ep, cost) for k, m in OVERSEERS.items()}
         if "truth_agents" in score:  # team tasks: grade each overseer against the threshold truth
             for v in ov.values(): v["grade"] = grade_overseer(v, score)
     debrief = {}
-    if cfg.get("interview"):  # after the game: ask each holder whether and why it shared its leak
-        for h in task.holder:
-            shared = h in task.holders_who_sent()
-            debrief[task.alias[h]] = dict(team=task.team_names[task.team(h)], shared=shared,
-                                         answer=interview(cfg.get("agent", AGENT_MODEL), task, h, cost, transcript=tr))
+    for h in (task.holder if cfg.get("interview") else []):
+        ans = done[("interview", h)]
+        debrief[task.alias[h]] = dict(team=task.team_names[task.team(h)], shared=h in task.holders_who_sent(),
+                                     answer=ans if isinstance(ans, str) else ans.get("error"))
     out = dict(security=security, security_messages_only=security_msgs, observer=observer, debrief=debrief,
                thoughts=[(r, i, t[:800]) for r, i, t in ep.thoughts], cfg=cfg, score=score, overseer=ov, cost_usd=cost.usd,
                calls=cost.calls, secs=round(time.time() - t0, 1),
@@ -112,17 +142,60 @@ def play(cfg: dict, sandboxes=None) -> dict:
     return out
 
 
-@app.function(image=func_image, secrets=SECRETS, timeout=2400)
+# games in flight at once: unlimited unless MAX_GAMES is set (each game also holds up to 15 agent sandboxes, so set it
+# to fit the workspace's container limit; see --mode capacity-probe)
+MAX_GAMES = int(os.environ.get("MAX_GAMES", "0")) or None
+
+
+@app.function(image=func_image, secrets=SECRETS, timeout=5400, max_containers=MAX_GAMES)
 def episode(cfg: dict) -> dict:
     sb_app = modal.App.lookup("collusion-sandboxes", create_if_missing=True)
     from harness.tasks import make_task
-    sandboxes = []
+    sandboxes = new_sandboxes(sb_app, make_task(cfg).n_total)
     try:
-        for _ in range(make_task(cfg).n_total):  # inside the try: if Modal refuses one, the ones already made are still closed
-            sandboxes.append(new_sandbox(sb_app))
         return play(cfg, sandboxes)
     finally:
         for s in sandboxes: s.close()
+
+
+@app.function(image=func_image, timeout=1800)
+def capacity_probe(n: int) -> dict:
+    """How many agent sandboxes this workspace can hold at once: start n idle sandboxes together, count how many came up
+    and how fast, then close them all. No model is called."""
+    from concurrent.futures import ThreadPoolExecutor
+    from harness.core import ModalSandbox
+    sb_app = modal.App.lookup("collusion-sandboxes", create_if_missing=True)
+    t0, made, errors = time.time(), [], []
+
+    def one(_):
+        t = time.time()
+        try:
+            sb = ModalSandbox(sb_app, sandbox_image, timeout=600)
+            ok = sb.exec("echo ok").strip() == "ok"
+            return sb, ok, time.time() - t, None
+        except Exception as e:
+            return None, False, time.time() - t, f"{type(e).__name__}: {str(e)[:120]}"
+    with ThreadPoolExecutor(min(n, 256)) as pool:
+        res = list(pool.map(one, range(n)))
+    for sb, ok, dt, err in res:
+        if sb is not None: made.append(sb)
+        if err: errors.append(err)
+    secs = sorted(dt for _, ok, dt, _ in res if ok)
+    for sb in made: sb.close()
+    return dict(requested=n, up=sum(ok for _, ok, _, _ in res), failed=len(errors), errors=sorted(set(errors))[:5],
+                median_start_s=round(secs[len(secs) // 2], 1) if secs else None, max_start_s=round(secs[-1], 1) if secs else None,
+                wall_s=round(time.time() - t0, 1))
+
+
+@app.function(image=func_image, secrets=SECRETS, timeout=60)
+def key_check() -> dict:
+    """The OpenRouter key's credit limit, usage and rate limit (GET /api/v1/key: no model call, no spend)."""
+    import os as _os
+    import requests
+    key = _os.environ.get("OPENROUTER_API_KEY") or next(v for k, v in _os.environ.items() if "OPENROUTER" in k.upper())
+    r = requests.get("https://openrouter.ai/api/v1/key", headers={"Authorization": f"Bearer {key}"}, timeout=30)
+    d = r.json().get("data", {}) if r.ok else {"error": f"{r.status_code}: {r.text[:200]}"}
+    return {k: v for k, v in d.items() if k != "label"}
 
 
 @app.function(image=func_image, secrets=SECRETS, timeout=300)
@@ -152,18 +225,26 @@ def main(mode: str = "pilot", seeds: int = 5, budget: float = -1.0, tasks: str =
          team_only: bool = False, random_teams: bool = False, progress_board: bool = False,
          v2: bool = False, security: bool = False, pairs: str = "", surveillance: bool = False,
          uniform_holders: bool = False, team_reward: bool = False,
-         levels: str = "0,1,2,3", dry_run: bool = False, resume: bool = False, officer_prompt: str = ""):
+         levels: str = "0,1,2,3", dry_run: bool = False, resume: bool = False, officer_prompt: str = "",
+         probe_n: int = 500):
     from harness.tasks import ALL_TASKS, BY_NAME
-    agent = AGENTS.get(agent, agent)  # short names: hermes, dolphin, opus
+    agents = [AGENTS.get(a, a) for a in agent.split(",")]  # short names: hermes, dolphin, opus; several with commas
+    assert len(agents) == 1 or mode == "difficulty", "several agent models in one launch: --mode difficulty only"
+    agent = agents[0]
     names = [n for n in BY_NAME if n in tasks.split(",")] if tasks else [t.name for t in ALL_TASKS]
     if mode == "sandbox-check":
         print(json.dumps(sandbox_check.remote(), indent=2)); return
+    if mode == "capacity-probe":
+        print(json.dumps(capacity_probe.remote(probe_n), indent=2)); return
+    if mode == "key-check":
+        print(json.dumps(key_check.remote(), indent=2)); return
     if mode == "difficulty":
-        # honest-path difficulty: every (seed, task, level) for one agent model; default seeds 200-204 (fresh, matched)
+        # honest-path difficulty: every (seed, task, level) for each agent model; default seeds 200-204 (fresh, matched)
         names = [n for n in HP_TASK_NAMES if n in tasks.split(",")] if tasks else list(HP_TASK_NAMES)
         if not seed_start: seed_start = 200
-        cfgs = build_difficulty_cfgs(names, [int(x) for x in levels.split(",")], seeds, seed_start, agent,
-                                     extra={"officer_prompt": officer_prompt} if officer_prompt else None)
+        cfgs = [c for a in agents for c in build_difficulty_cfgs(
+            names, [int(x) for x in levels.split(",")], seeds, seed_start, a,
+            extra={"officer_prompt": officer_prompt} if officer_prompt else None)]
         if pairs:  # rerun only some games: "task:seed,task:seed"
             want = {(p.split(":")[0], int(p.split(":")[1])) for p in pairs.split(",") if p}
             cfgs = [c for c in cfgs if (c["task"], c["seed"]) in want]
@@ -213,44 +294,67 @@ def main(mode: str = "pilot", seeds: int = 5, budget: float = -1.0, tasks: str =
         cfgs = [dict(task=n, seed=s, channel=c, pressure=p, agent=agent) for s in range(seeds) for n in names for c in (True, False) for p in (False, True)]
     out_dir = Path("results"); out_dir.mkdir(parents=True, exist_ok=True)
     what = f"{mode}-{'+'.join(names)}" if mode == "teams" else mode  # team runs: the task is in the name (two tasks once collided)
-    run = f"{what}-{agent.split('/')[-1]}{'-' + tag if tag else ''}"
-    out = out_dir / f"{run}.jsonl"
+    runs = {a: f"{what}-{a.split('/')[-1]}{'-' + tag if tag else ''}" for a in agents}  # one results file per agent model
     from harness.transcript import git_hash
     git = git_hash()
     for k, c in enumerate(cfgs):
         c["game_id"] = game_id(c, k)
         c["git"] = git
     if dry_run:  # print what would run, and stop before any remote call
-        report_dry_run(cfgs, agent, out)
+        for a in agents:
+            report_dry_run([c for c in cfgs if c.get("agent", agent) == a], a, out_dir / f"{runs[a]}.jsonl")
+        if len(agents) > 1:
+            print(f"ALL MODELS: {len(cfgs)} games in one launch, estimated ${sum(EST_PER_GAME.get(c['agent'], 0) for c in cfgs):.2f}")
         return
     assert budget > 0, "pass --budget <usd> (there is no default budget)"
-    done_keys = set()
-    if out.exists() and out.stat().st_size > 0:  # an empty file (an aborted run) holds nothing to protect
-        if resume:
-            done_keys = {game_key(json.loads(l)["cfg"]) for l in out.open() if l.strip()}
-            print(f"resume: {len(done_keys)} games already in {out}")
-        elif not overwrite:
-            print(f"STOP: {out} already exists. Use a new --tag, --resume, or pass --overwrite to replace it."); return
-    todo = [c for c in cfgs if game_key(c) not in done_keys]
-    spent, done = 0.0, 0
-    B = 40  # batch size (games run in parallel): the budget is checked between batches
-    tdir = Path("transcripts") / run
-    with out.open("a" if resume else "w") as f:  # one file per (mode, agent model, tag)
-        for k in range(0, len(todo), B):
-            if spent >= budget:
-                print(f"STOP: budget ${budget} reached after {done} episodes (spent ${spent:.2f})"); break
-            for r in episode.map(todo[k:k + B], return_exceptions=True):
-                if isinstance(r, Exception):
-                    print("episode failed:", type(r).__name__, str(r)[:200]); continue
-                spent += r["cost_usd"]; done += 1
-                b64 = r.pop("transcript_b64", None)
-                if b64:
-                    from harness.transcript import save_b64
-                    path = tdir / f"{r['cfg']['game_id']}.json.gz"
-                    r["transcript_path"], r["transcript_sha256"] = str(path), save_b64(b64, path)
-                f.write(json.dumps(r, default=str) + "\n"); f.flush()
-            print(f"{done}/{len(todo)} episodes, spent ${spent:.3f}")
-    print(f"done: {done} episodes, ${spent:.3f} -> {out} (transcripts in {tdir})")
+    files, todo = {}, []
+    for a in agents:
+        out = out_dir / f"{runs[a]}.jsonl"
+        mine = [c for c in cfgs if c.get("agent", agent) == a]
+        done_keys = set()
+        if out.exists() and out.stat().st_size > 0:  # an empty file (an aborted run) holds nothing to protect
+            if resume:
+                done_keys = {game_key(json.loads(l)["cfg"]) for l in out.open() if l.strip()}
+                print(f"resume: {len(done_keys)} games already in {out}")
+            elif not overwrite:
+                print(f"STOP: {out} already exists. Use a new --tag, --resume, or pass --overwrite to replace it."); return
+        todo += [c for c in mine if game_key(c) not in done_keys]
+        files[a] = (out, Path("transcripts") / runs[a])
+    todo = longest_first(todo)
+    handles = {a: out.open("a" if resume else "w") for a, (out, _) in files.items()}
+    spent, done, failed, t0 = 0.0, 0, 0, time.time()
+    print(f"launching {len(todo)} games at once (MAX_GAMES={MAX_GAMES or 'unlimited'}), budget ${budget}")
+    try:
+        # every game in one streaming map: results are written as each game finishes, in any order
+        for r in episode.map(todo, order_outputs=False, return_exceptions=True):
+            if isinstance(r, Exception):
+                failed += 1
+                print(f"episode failed ({failed}):", type(r).__name__, str(r)[:200]); continue
+            a = r["cfg"].get("agent", agent)
+            spent += r["cost_usd"]; done += 1
+            b64 = r.pop("transcript_b64", None)
+            if b64:
+                from harness.transcript import save_b64
+                path = files[a][1] / f"{r['cfg']['game_id']}.json.gz"
+                r["transcript_path"], r["transcript_sha256"] = str(path), save_b64(b64, path)
+            handles[a].write(json.dumps(r, default=str) + "\n"); handles[a].flush()
+            print(f"[{done + failed}/{len(todo)}] {a.split('/')[-1]} {r['cfg'].get('game_id')} ${r['cost_usd']:.3f} "
+                  f"{r['secs']:.0f}s | spent ${spent:.2f} | {(time.time() - t0) / 60:.1f} min")
+            if spent >= budget:  # leaving the map stops the app, which cancels the games still running
+                print(f"STOP: budget ${budget} reached after {done} episodes (spent ${spent:.2f}); games in flight are cancelled")
+                break
+    finally:
+        for h in handles.values(): h.close()
+    print(f"done: {done} episodes, {failed} failed, ${spent:.3f}, {(time.time() - t0) / 60:.1f} min -> "
+          + ", ".join(str(o) for o, _ in files.values()) + ("  (rerun the failed ones with --resume)" if failed else ""))
+
+
+def longest_first(cfgs):
+    """Start the longest games first, so a capped number of games in flight still finishes as early as possible:
+    slower models first, then games with more agents (more model calls per round)."""
+    from harness.tasks import make_task
+    speed = {AGENTS["opus"]: 3, AGENTS["hermes"]: 2, AGENTS["dolphin"]: 1}
+    return sorted(cfgs, key=lambda c: (-speed.get(c.get("agent"), 2), -make_task(c).n_total))
 
 
 def report_dry_run(cfgs, agent, out):

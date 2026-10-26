@@ -25,6 +25,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 SCHEMA = 1
@@ -49,6 +50,7 @@ class Transcript:
                          created_utc=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
                          header={}, agents=[], events=[], readers=[], score=None, post={})
         self._pending = {}  # agent -> sandbox calls made by the command being run
+        self._lock = threading.Lock()  # post-game readers run in parallel threads
 
     # ---- recording (called by core.run_episode)
     def _ev(self, kind, **kw):
@@ -116,9 +118,10 @@ class Transcript:
 
     def reader(self, kind, model, prompt, reply, meta, agent=None):
         meta = meta or {}
-        self.data["readers"].append(dict(kind=kind, model=model, agent=agent, prompt=prompt, reply=reply,
-                                         **{k: meta.get(k) for k in ("finish_reason", "prompt_tokens", "completion_tokens",
-                                                                     "cost_usd", "latency_s", "refused", "error")}))
+        with self._lock:
+            self.data["readers"].append(dict(kind=kind, model=model, agent=agent, prompt=prompt, reply=reply,
+                                             **{k: meta.get(k) for k in ("finish_reason", "prompt_tokens", "completion_tokens",
+                                                                         "cost_usd", "latency_s", "refused", "error")}))
 
     def finish(self, score):
         self.data["score"] = json.loads(json.dumps(score, default=_jsonable))

@@ -5,6 +5,7 @@ handled by the harness, so sandboxes need no network. Anything else is passed to
 """
 import os
 import random
+import threading
 import json
 import re
 import time
@@ -36,15 +37,38 @@ def _is_moderation(status, text):
     return status == 403 and any(w in t for w in ("moderation", "flagged", "content policy", "refus"))
 
 
-def chat_full(model, messages, cost: Cost, temperature=0.7, max_tokens=400):
+RETRY_BUDGET_S = 300   # how long one call keeps retrying rate limits and server errors before the game fails
+_cost_lock = threading.Lock()
+
+
+class APIFailure(RuntimeError):
+    """A model call that kept failing (rate limits, server errors): the game stops, so --resume can replay it, instead
+    of an empty reply silently ending the agent's turn."""
+
+
+def _wait(attempt, r=None):
+    """Exponential backoff with jitter, capped at 60 s; honours Retry-After when the server sends it."""
+    ra = r.headers.get("Retry-After") if r is not None else None
+    try:
+        if ra: return min(60.0, float(ra)) + random.uniform(0, 1)
+    except ValueError:
+        pass
+    return min(60.0, 2 ** attempt) * random.uniform(0.5, 1.5)
+
+
+def chat_full(model, messages, cost: Cost, temperature=0.7, max_tokens=400, retry_budget_s=None):
     """One model call, with its metadata: content, finish reason, tokens, cost, latency, and whether it was refused.
-    A moderation refusal (403) is returned as an empty, refused reply; a bad key, no credit or a spending limit stops
-    the game instead of recording silence."""
+    A moderation refusal (403) is returned as an empty, refused reply. A bad key, no credit or a spending limit stops the
+    game. Rate limits (429), server errors (5xx), timeouts and error bodies are retried with backoff for up to
+    RETRY_BUDGET_S seconds, then raise APIFailure: under heavy parallel load a silent empty reply would read as `done`."""
     key = os.environ.get("OPENROUTER_API_KEY") or next(v for k, v in os.environ.items() if "OPENROUTER" in k.upper())
+    budget = RETRY_BUDGET_S if retry_budget_s is None else retry_budget_s
     t0, out = time.time(), dict(content="", finish_reason=None, prompt_tokens=0, completion_tokens=0, cost_usd=0.0,
-                                refused=False, error=None, attempts=0)
-    for attempt in range(5):
+                                refused=False, error=None, attempts=0, retries=0)
+    attempt = 0
+    while True:
         out["attempts"] = attempt + 1
+        r = None
         try:
             r = requests.post(OR_URL, headers={"Authorization": f"Bearer {key}"}, timeout=120,
                               json={"model": model, "messages": messages, "temperature": temperature,
@@ -56,19 +80,29 @@ def chat_full(model, messages, cost: Cost, temperature=0.7, max_tokens=400):
                 raise RuntimeError(f"OpenRouter refused the request ({r.status_code}): {r.text[:200]}")
             if r.ok:
                 j = r.json()
-                u = j.get("usage", {})
-                c = float(u.get("cost") or 0.0)
-                cost.usd += c; cost.calls += 1
-                cost.tokens += int(u.get("total_tokens") or 0)
-                ch = j["choices"][0]
-                out.update(content=(ch["message"].get("content") or "").strip(), finish_reason=ch.get("finish_reason"),
-                           prompt_tokens=int(u.get("prompt_tokens") or 0), completion_tokens=int(u.get("completion_tokens") or 0),
-                           cost_usd=c, error=None)
-                break
-            out["error"] = f"{r.status_code}: {r.text[:300]}"
-        except requests.RequestException as e:
+                if j.get("choices"):
+                    u = j.get("usage", {})
+                    c = float(u.get("cost") or 0.0)
+                    with _cost_lock:
+                        cost.usd += c; cost.calls += 1
+                        cost.tokens += int(u.get("total_tokens") or 0)
+                    ch = j["choices"][0]
+                    out.update(content=((ch.get("message") or {}).get("content") or "").strip(),
+                               finish_reason=ch.get("finish_reason"), prompt_tokens=int(u.get("prompt_tokens") or 0),
+                               completion_tokens=int(u.get("completion_tokens") or 0), cost_usd=c, error=None)
+                    break
+                out["error"] = f"200 without choices: {str(j.get('error', j))[:300]}"  # an upstream error in a 200 body
+            else:
+                out["error"] = f"{r.status_code}: {r.text[:300]}"
+                if 400 <= r.status_code < 500 and r.status_code not in (408, 409, 425, 429) and attempt >= 1:
+                    raise APIFailure(f"{model}: client error after {attempt + 1} attempts: {out['error']}")
+        except (requests.RequestException, ValueError) as e:  # network errors, timeouts, unparsable bodies
             out["error"] = f"{type(e).__name__}: {str(e)[:200]}"
-        time.sleep(2 ** attempt)
+        if time.time() - t0 > budget:
+            raise APIFailure(f"{model}: still failing after {attempt + 1} attempts and {time.time() - t0:.0f} s: {out['error']}")
+        time.sleep(_wait(attempt, r))
+        attempt += 1
+        out["retries"] = attempt
     out["latency_s"] = round(time.time() - t0, 2)
     return out
 
@@ -129,7 +163,7 @@ class MemorySandbox:
 
 class ModalSandbox:
     """One isolated container per agent: no network, no secrets, non-root, hard timeout."""
-    def __init__(self, app, image, timeout=900):
+    def __init__(self, app, image, timeout=5400):  # long enough for a slow model's full game plus retries
         import modal
         self.sb = modal.Sandbox.create(app=app, image=image, block_network=True, timeout=timeout,
                                        cpu=0.5, memory=512)
@@ -179,7 +213,7 @@ Type `done` when you have nothing more to do this round. Use `help` to list comm
 class LLMAgent:
     def __init__(self, model, cost: Cost):
         self.model, self.cost = model, cost
-        self.health = dict(calls=0, empty=0, no_block=0, refused=0, truncated=0)  # reply health, reported in the score
+        self.health = dict(calls=0, empty=0, no_block=0, refused=0, truncated=0, retries=0)  # reply health, in the score
 
     def act(self, brief: str, obs: str) -> str:
         meta = dict(refused=False, finish_reason=None)  # filled by chat() (a stubbed chat in tests leaves the defaults)
@@ -188,6 +222,7 @@ class LLMAgent:
         self.last_raw, self.last_meta = out, meta  # the full reply, including any reasoning written around the command
         h = self.health
         h["calls"] += 1; h["empty"] += not out; h["refused"] += meta["refused"]; h["truncated"] += meta["finish_reason"] == "length"
+        h["retries"] += meta.get("retries") or 0
         # prefer a fenced block with a newline after the (optional) language tag; fall back to an inline ```cmd``` block.
         # (A bare `(?:bash|sh)?` before the body used to swallow the "sh" of "show".)
         m = re.search(r"```(?:bash|sh)?[ \t]*\n(.*?)```", out, re.S) or re.search(r"```(.*?)```", out, re.S)
