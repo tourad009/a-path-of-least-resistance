@@ -151,7 +151,7 @@ def play(cfg: dict, sandboxes=None) -> dict:
 MAX_GAMES = int(os.environ.get("MAX_GAMES", "0")) or None
 
 
-@app.function(image=func_image, secrets=SECRETS, timeout=5400, max_containers=MAX_GAMES)
+@app.function(image=func_image, secrets=SECRETS, timeout=14400, max_containers=MAX_GAMES)  # 4 h: DeepSeek D3 games ran past 80 min
 def episode(cfg: dict) -> dict:
     sb_app = modal.App.lookup("collusion-sandboxes", create_if_missing=True)
     from harness.tasks import make_task

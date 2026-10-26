@@ -176,7 +176,7 @@ def test_reasoning_models_get_reasoning_switched_off(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "x")
     monkeypatch.setattr(core.requests, "post", lambda url, json=None, **k: sent.update(json) or R())
     core.LLMAgent("deepseek/deepseek-v3.2", core.Cost()).act("b", "o")
-    assert sent["reasoning"] == {"enabled": False} and sent["max_tokens"] == 400
+    assert sent["reasoning"] == {"enabled": False} and sent["max_tokens"] == 400 and sent["provider"] == {"sort": "latency"}
     sent.clear()
     core.LLMAgent("nousresearch/hermes-4-405b", core.Cost()).act("b", "o")
     assert "reasoning" not in sent

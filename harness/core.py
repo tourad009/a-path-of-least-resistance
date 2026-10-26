@@ -30,7 +30,10 @@ class Cost:
 # per-model call settings (agents); anything not listed uses chat()'s defaults. Models that can reason get reasoning
 # switched off: with a 400-token reply cap, hidden reasoning can use up the budget and leave an empty reply (read as done).
 NO_REASONING = {"reasoning": {"enabled": False}}
-MODEL_PARAMS = {"deepseek/deepseek-v3.2": dict(extra=NO_REASONING), "anthropic/claude-haiku-5.5": dict(extra=NO_REASONING)}
+MODEL_PARAMS = {
+    # DeepSeek is served by several hosts, some very slow (calls up to ~2 min): route to the fastest one (same model)
+    "deepseek/deepseek-v3.2": dict(extra={**NO_REASONING, "provider": {"sort": "latency"}}),
+    "anthropic/claude-haiku-5.5": dict(extra=NO_REASONING)}
 
 
 def _is_moderation(status, text):
@@ -173,7 +176,7 @@ class MemorySandbox:
 
 class ModalSandbox:
     """One isolated container per agent: no network, no secrets, non-root, hard timeout."""
-    def __init__(self, app, image, timeout=5400):  # long enough for a slow model's full game plus retries
+    def __init__(self, app, image, timeout=14400):  # long enough for a slow model's full game plus retries
         import modal
         self.sb = modal.Sandbox.create(app=app, image=image, block_network=True, timeout=timeout,
                                        cpu=0.5, memory=512)
