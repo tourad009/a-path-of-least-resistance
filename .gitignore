@@ -9,3 +9,9 @@ transcripts/**/*.html
 transcripts/local/
 analysis/out/*.png
 .claude/
+
+# ablation runs: kept locally, not published
+experiments/ABLATIONS.md
+harness/analysis_ablate.py
+results/ablations-*
+transcripts/ablations-*/

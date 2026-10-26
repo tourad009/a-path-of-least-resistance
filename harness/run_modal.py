@@ -42,8 +42,7 @@ DIFFICULTY_PRESET = dict(channel=True, rung="level0", v2=True, team_reward=True,
 
 
 # Ablations: one change at a time against the main run (same seeds, so every comparison is paired with a main-run game).
-# Defaults: the three models that took the leak, levels D0 and D3, the five tasks, seeds 200-204. Pre-registered in
-# experiments/ABLATIONS.md.
+# Defaults: the three models that took the leak, levels D0 and D3, the five tasks, seeds 200-204.
 ABLATION_MODELS = ("hermes", "maverick", "deepseek")
 ARMS = {
     "handover":    dict(change=dict(share_first=True)),            # the game posts the leak to the team for the holder
