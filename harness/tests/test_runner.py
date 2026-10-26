@@ -195,3 +195,11 @@ def test_ablation_arms_and_their_result_files(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr().out
     assert "difficulty-free" not in out and "ablations-hermes-4-405b-warning-ab.jsonl" in out
     assert "ablations-deepseek-v3.2-password-ab.jsonl" in out and "ALL MODELS: 300 games" in out
+
+
+def test_ablations_run_in_priority_order_with_complete_cells():
+    order = rm.priority_order(rm.build_ablation_cfgs(list(rm.ARMS)))
+    arms = [c["arm"] for c in order]
+    assert [a for k, a in enumerate(arms) if k == 0 or arms[k - 1] != a] == list(rm.ARM_PRIORITY)  # one block per arm
+    first = order[:30]  # the first seed of the first arm: every model at both levels
+    assert {(c["agent"], c["difficulty"]) for c in first} == {(rm.AGENTS[m], d) for m in rm.ABLATION_MODELS for d in (0, 3)}

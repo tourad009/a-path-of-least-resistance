@@ -59,6 +59,23 @@ ARMS = {
 }
 
 
+# the order ablations run in: the most informative arms first, so a budget stop still leaves complete arms
+ARM_PRIORITY = ("handover", "nomessaging", "warning", "norule",            # 1: mechanism, structural check, deterrence
+                "password", "dbmore", "individual",                       # 2: leak type, reward
+                "ask", "noteamchat", "pushclaude",                        # 3: social request, friction, Claude
+                "messyleak", "nomemory", "neutralleak")                   # 4: details of the leak and memory
+
+
+def priority_order(cfgs):
+    """Arms in ARM_PRIORITY order; inside an arm, seeds outermost and models and levels interleaved, so every prefix of the
+    run holds matched cells for all models and both levels. Slow games go first inside each seed (shorter tail)."""
+    from harness.tasks import make_task
+    speed = {AGENTS["hermes"]: 2, AGENTS["deepseek"]: 2, AGENTS["maverick"]: 1, AGENTS["haiku"]: 1}
+    rank = {a: k for k, a in enumerate(ARM_PRIORITY)}
+    return sorted(cfgs, key=lambda c: (rank.get(c.get("arm"), len(rank)), c["seed"], -speed.get(c["agent"], 1),
+                                       -make_task(c).n_total, c["task"], c["difficulty"]))
+
+
 def build_ablation_cfgs(arms, models=None):
     out = []
     for arm in arms:
@@ -401,7 +418,7 @@ def main(mode: str = "pilot", seeds: int = 5, budget: float = -1.0, tasks: str =
                 print(f"STOP: {out} already exists. Use a new --tag, --resume, or pass --overwrite to replace it."); return
         todo += [c for c in mine if game_key(c) not in done_keys]
         files[a] = (out, Path("transcripts") / runs[a])
-    todo = longest_first(todo)
+    todo = priority_order(todo) if mode == "ablations" else longest_first(todo)
     handles = {a: out.open("a" if resume else "w") for a, (out, _) in files.items()}
     spent, done, failed, t0 = 0.0, 0, 0, time.time()
     print(f"launching {len(todo)} games at once (MAX_GAMES={MAX_GAMES or 'unlimited'}), budget ${budget}")
