@@ -61,11 +61,12 @@ def task(name, d, seed=SEED):
 
 # ---------------------------------------------------------------- design
 def design():
-    per = {m: rm.build_difficulty_cfgs(rm.HP_TASK_NAMES, [0, 1, 2, 3], 5, 200, m) for m in rm.AGENTS.values()}
+    main_models = [rm.AGENTS[k] for k in ("hermes", "dolphin")]  # the models analysed in the paper (Opus is out: its replies were mostly content-filtered)
+    per = {m: rm.build_difficulty_cfgs(rm.HP_TASK_NAMES, [0, 1, 2, 3], 5, 200, m) for m in main_models}
     n = sum(len(c) for c in per.values())
     t = task("team_coding", 0)
     lo, hi = teams.TeamTask.TEAM_RANGE
-    d = dict(NGames=n, NGamesPerModel=len(next(iter(per.values()))), NModels=len(rm.AGENTS), NTasks=len(rm.HP_TASK_NAMES),
+    d = dict(NGames=n, NGamesPerModel=len(next(iter(per.values()))), NModels=len(main_models), NTasks=len(rm.HP_TASK_NAMES),
              NLevels=4, NSeeds=5, SeedRange="200--204", NRounds=t.rounds, NCmds=8, NFinalCmds=teams.LAST_CALL_CMDS,
              TeamSize=t.team_size, TeamsMin=lo, TeamsMax=hi, MsgCap=300, ShellCap=1500, MemoryLen=t.memory_len,
              MsgsShown=t.messages_shown, MaxTokens=400, Temperature="0.7", OfficerModel=rm.OVERSEERS["strong"],
@@ -76,7 +77,7 @@ def design():
         d[f"PriceIn{key}"], d[f"PriceOut{key}"] = (f"{x:g}" for x in PRICES[m])
     for key, m in (("Hermes", "hermes"), ("Dolphin", "dolphin"), ("Opus", "opus")):
         d[f"Est{key}"] = f"{rm.EST_PER_GAME[rm.AGENTS[m]] * 100:.0f}"
-    d["EstTotal"] = f"{sum(rm.EST_PER_GAME.values()) * 100:.0f}"
+    d["EstTotal"] = f"{sum(rm.EST_PER_GAME[m] for m in main_models) * 100:.0f}"
     return macros({k: tex(str(v)) for k, v in d.items()})
 
 
@@ -181,8 +182,7 @@ def smoke():
 # ---------------------------------------------------------------- results (the first finding)
 def results():
     p = ROOT / "analysis" / "numbers.json"
-    models = [("Hermes-4-405B", "hermes-4-405b"), ("Dolphin-Mistral-24B", "dolphin-mistral-24b-venice-edition"),
-              ("Claude Opus 5.5", "claude-opus-5.5")]
+    models = [("Hermes-4-405B", "hermes-4-405b"), ("Dolphin-Mistral-24B", "dolphin-mistral-24b-venice-edition")]
     res = json.loads(p.read_text()) if p.exists() else None
     ph = "\\torun{: H1}"
     fmt = lambda x: "--" if x is None else f"{x:.2f}"
