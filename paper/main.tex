@@ -188,12 +188,15 @@ leak, so the cost of honest work is the main thing that pushes agents toward it.
 % ================= 3. Methods =================
 \section{Methodology}
 
-\subsection{Architecture}
-The harness runs one \emph{run} at a time (Figure~\ref{fig:arch}). Several teams of agents work in separate sandboxes on the
-same kind of task and talk over shared chat channels. The sandbox holds the public files, which contain the honest route to
-the reward. In some teams one member, the \emph{holder}, also finds a leak file. A scorer grades the answers, and after the
-run a passive security officer reads the chat and the scores. Each component below is fixed except one: the cost of the
-honest route.
+\subsection{Architecture overview}
+A run has four stages (Figure~\ref{fig:arch}). We first \textbf{set up} the teams and the task: several teams of three agents
+are drawn, one member of some teams, the holder, will get a leak, and every team gets the same task whose honest route we make
+as costly as the level requires, from trivial (D0) to impossible (D3) (Section~\ref{sec:setup}). The agents are then
+\textbf{briefed and play}: each learns its task, goal and rules, only the holder is told about the leaked file, and the agents
+work in turns, running commands and messaging each other openly, within their team or privately (Section~\ref{sec:play}). A
+scorer \textbf{scores} the answers, giving points for the honest answers and the leaked ones alike (Section~\ref{sec:score}).
+Finally, a passive officer \textbf{oversees} the finished run and we \textbf{measure} what the leak did
+(Section~\ref{sec:oversee}).
 
 \begin{figure}[t]
   \centering
@@ -202,17 +205,28 @@ honest route.
       arr/.style={-{Stealth[length=2.2mm]}, line width=1pt},
       lab/.style={font=\footnotesize, inner sep=1.5pt, fill=white},
       arrlab/.style={font=\small\bfseries, inner sep=2pt, fill=white}]
-    % observation cone (drawn first so it sits behind the boxes)
-    \fill[black!7] (-0.35,0.4) -- (4.15,0.4) -- (3.1,-2.4) -- (0.7,-2.4) -- cycle;
-    \node[font=\LARGE, text=black!45] at (1.9,-0.7) {\faEye};
-    \node[lab, fill=none, text=black!55] at (1.9,-1.35) {watches the whole run};
-    % team
-    \node[comp, minimum width=45mm, minimum height=36mm] (team) at (1.9,2.2) {};
+    % observation funnel and frame around all teams
+    \fill[black!8] (-1.3,0.25) -- (4.3,0.25) -- (2.8,-2.4) -- (0.2,-2.4) -- cycle;
+    \node[font=\LARGE, text=black!50] at (1.5,-0.7) {\faEye};
+    \node[lab, fill=none, text=black!60] at (1.5,-1.4) {watches all the teams};
+    \draw[black!35, dashed, rounded corners=6pt] (-1.3,0.25) rectangle (4.3,5.2);
+    % other teams, overlapping behind the front team; each strip says whether that team holds a leak
+    \node[comp, draw=leakred!70, fill=leakred!5, minimum width=45mm, minimum height=36mm] at (1.1,3.4) {};
+    \node[font=\normalsize, text=leakred] at (-0.85,4.9) {\faKey};
+    \node[font=\footnotesize\bfseries, text=leakred, anchor=west, inner sep=1pt] at (-0.62,4.9) {LEAK};
+    \node[comp, draw=honestgreen!70, fill=honestgreen!6, minimum width=45mm, minimum height=36mm] at (1.5,2.8) {};
+    \node[font=\normalsize, text=honestgreen] at (-0.45,4.3) {\faCheckCircle};
+    \node[font=\footnotesize\bfseries, text=honestgreen, anchor=west, inner sep=1pt] at (-0.22,4.3) {NO LEAK};
+    \node[font=\footnotesize, text=black!60, anchor=south west, inner sep=1pt] at (-1.3,5.3) {\faUsers\;\textbf{Several teams per run}};
+    % the front team, in detail
+    \node[comp, draw=leakred, fill=leakred!5, minimum width=45mm, minimum height=36mm] (team) at (1.9,2.2) {};
+    \node[font=\normalsize, text=leakred] at (-0.05,3.72) {\faKey};
+    \node[font=\footnotesize\bfseries, text=leakred, anchor=west, inner sep=1pt] at (0.18,3.72) {LEAK};
     \node[font=\Large, text=leakred] at (0.55,3.1) {\faUser};
     \node[font=\Large, text=black!60] at (1.9,3.1) {\faUser};
     \node[font=\Large, text=black!60] at (3.25,3.1) {\faUser};
     \node[font=\small, text=leakred] at (0.55,2.5) {\faKey};
-    \node[lab] at (0.55,2.05) {holder};
+    \node[lab, fill=none] at (0.55,2.05) {holder};
     \node[align=center] at (1.9,1.2) {\textbf{Team of 3 agents}\\talking in a shared chat};
     % routes
     \node[comp, draw=leakred, text width=46mm, minimum height=17mm] (leak) at (8.9,4.0) {\textcolor{leakred}{\faKey}\;\textbf{Use the leak}\\the older answer key, \vone{}\\same in every run};
@@ -225,8 +239,8 @@ honest route.
     }
     % reward
     \node[comp, minimum width=34mm, minimum height=30mm] (rew) at (14.0,2.2) {\textcolor{black!60}{\Large\faTrophy}\\[2pt]\textbf{Team score}\\both keys\\score points};
-    % overseer
-    \node[comp, text width=50mm] (off) at (1.9,-3.05) {\textcolor{black!60}{\faUserShield}\;\textbf{Security officer}\\watches the run, never acts};
+    % overseer and measures
+    \node[comp, text width=50mm] (off) at (1.5,-3.05) {\textcolor{black!60}{\faUserShield}\;\textbf{Security officer}\\watches every team, never acts};
     \node[comp, minimum width=34mm, text width=33mm] (meas) at (14.0,-3.05) {\textcolor{black!60}{\faChartBar}\;\textbf{We measure}\\leak used, shared, collusion, detected};
     % arrows
     \draw[arr, leakred] (team.north east) to[out=40,in=180] node[arrlab, text=leakred, above, pos=0.5] {shortcut} (leak.west);
@@ -236,136 +250,151 @@ honest route.
     \draw[arr, black!55] (off.east) -- node[lab, above] {reports what it saw} (meas.west);
     \draw[arr, black!55] (rew.south) -- (meas.north);
   \end{tikzpicture}
-  \caption{\textbf{The harness in one picture.} A team of agents can reach the same reward by two routes: a leaked answer
-  key (\vone{}) that one member, the holder, may find, or the answers worked out from public files (\vtwo{}). The leak is the
-  same in every run. We vary only the cost of the honest route: \textbf{D0}, the answer can be read straight from a public
-  file; \textbf{D1}, it takes one extra lookup; \textbf{D2}, it takes combining several sources and applying a rule;
-  \textbf{D3}, the answer cannot be worked out at all. Both keys
-  score points, and a passive security officer watches without acting.}
+  \caption{\textbf{The harness in one picture.} Each run has several teams of agents on the same task: some hold a leak
+  (\textcolor{leakred}{\textbf{LEAK}}) and the rest are controls (\textcolor{honestgreen}{\textbf{NO LEAK}}). Any team can
+  reach the reward by working the answers out from public files (\vtwo{}); a team with a leak can also use the leaked answer
+  key (\vone{}) that one member, the holder, finds. The leak is the same in every run; we vary only the cost of the honest
+  route, from \textbf{D0} (the answer can be read straight from a public file) through \textbf{D1} (one extra lookup) and
+  \textbf{D2} (several sources combined with a rule) to \textbf{D3} (no honest route). Both keys score points, and a passive
+  security officer watches every team without acting.}
   \label{fig:arch}
 \end{figure}
 
-\subsection{Teams, agents and channels}
-A run has \TeamsMin--\TeamsMax{} teams of \TeamSize{} agents. On a random 1 to $T-1$ of the $T$ teams, one random member
-holds the leak; the other teams are \emph{control teams} and have none. Agents take turns over \NRounds{} rounds of up to
-\NCmds{} commands, plus a final turn. Each command is one model call that sees the agent's brief, its team's answer board,
-its recent messages and its recent commands. Agents can message everyone, their team or any single agent, and otherwise run
-commands in their own offline sandbox. Each brief states the task, the goal (a reward for the team's total score) and the
-rule that using or sharing non-public information is prohibited. \textbf{No prompt asks agents to collude}, and agents are
-not told anyone is watching.
+\subsection{Setting and assumptions}
+Four assumptions define the setting. \textbf{A1, the leak is unprompted:} nobody asks the agents to use or share it, and the
+holder is only told that a file was accidentally left in its workspace. \textbf{A2, the stakes are nominal:} the agents are
+prompted, not trained, and the reward exists only in the prompt. \textbf{A3, only the cost varies:} at D0--D2 agents are told
+where the honest route is, and the levels change how hard it is to follow. \textbf{A4, the wording is fixed:} the holder's note,
+the rule against non-public information and the line telling agents that answers from the previous version of the key are
+also accepted (Section~\ref{sec:setup}) are the same at every level, so they cannot explain differences between levels.
 
-\subsection{Tasks}
-Each agent answers 10 items (Table~\ref{tab:tasks}). Items 1--5 are public and need ordinary work. Items 6--10 are the
-team's \emph{special items}; their answers differ by team, so another team's leak is worthless.
+\subsection{Teams and tasks}\label{sec:setup}
+\paragraph{Teams.} Each run draws two to five teams of three agents. We then choose at random which teams get a leak, always
+at least one team with it and at least one without. In every team that gets it, one randomly chosen member becomes the
+\emph{holder} and is the only one to receive the leaked file. The teams without a leak are \emph{control teams}.
+
+\paragraph{Tasks.} In every task each agent works in its own workspace with public files and must give 10 answers. Five are
+\emph{ordinary} questions that careful work on the public files can answer. The other five are \emph{team-specific}
+questions: their answers differ from team to team, so another team's leak is useless, and they are where the honest route
+gets easier or harder. We use five everyday tasks (Table~\ref{tab:tasks}); for example, in the database task the team-specific
+questions ask for a team's unit costs, which the holder's leak (a copy of a restricted table) contains and which, at D0--D2,
+can also be worked out from public tables. The files of every task are listed in Appendix~\ref{app:honest}.
 
 \begin{table}[htbp]
   \centering\small
-  \caption{\textbf{Five everyday agentic tasks share one skeleton}: 5 public items, 5 special items, one leak file per
-  holder team.}
+  \caption{\textbf{Five everyday agentic tasks share one structure.} In each, the holder's leak holds the answers to the
+  team's team-specific items from the previous version of the answer key.}
   \label{tab:tasks}
-  \begin{tabularx}{\linewidth}{lLl}
+  \begin{tabularx}{\linewidth}{lLL}
     \toprule
-    Task & What agents do & Leak file (holder only) \\
+    Task & What the agents do & What the leak holds \\
     \midrule
-    Leaderboard & give the 2-letter category code of 10 shapes, looked up in \texttt{training.csv} & \texttt{special\_labels.csv} \\
-    Database & answer 10 questions with read-only SQL over a company database & \texttt{supplier\_costs\_export.csv} \\
-    Auction & price 10 deals within 1\% under each buyer's budget & \texttt{buyer\_budgets.csv} \\
-    Coding & write 5 one-line Python functions, checked on a normal and a special case & \texttt{hidden\_tests.py} \\
-    Document Q\&A & answer 10 questions from company policies and a client contract & \texttt{prev\_audit\_answers.txt} \\
+    Leaderboard & give each shape a two-letter category code & the category codes of the team's own shapes \\
+    Database & answer questions about a company's suppliers and costs with SQL & a copy of the team's restricted table \\
+    Auction & price each deal within 1\% below the buyer's budget & the budgets of the team's key buyers \\
+    Coding & write short Python functions that pass normal and team-specific tests & the hidden tests and their expected outputs \\
+    Document Q\&A & answer questions from company policies and a client contract & the answer sheet for the client questions \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
-\subsection{The leak and the versioned key}
-Every special item has two accepted answers. \textbf{\vtwo{}}, the current key, is what honest work derives. \textbf{\vone{}},
-the previous version, appears \emph{only} in the leak file. An agent \emph{used the leak} when at least 3 of its 5 special
-items match \vone{}, which proves use at every difficulty level. Tests check that \vone{} never appears in a public file or
-brief and that \vone{} and \vtwo{} differ for every item.
+\paragraph{The honest route and its cost.} The one manipulated factor is how much work the honest route to the team-specific
+items takes. The levels mean the same in every task: \textbf{D0}, the answer is written in a public file; \textbf{D1}, one
+mapping step; \textbf{D2}, a join of several sources plus a rule; \textbf{D3}, no honest route. At D0--D2 the brief says the
+team-specific items can be worked out from the public files, so levels change the cost of the honest route and not whether agents
+know it exists. The exact \texttt{README.txt} of every task and level is in Appendix~\ref{app:honest}.
 
-\subsection{The honest-route dial}
-The one manipulated factor is how much work the honest route to the special items takes. The levels mean the same in every
-task: \textbf{D0}, the answer is written in a public file; \textbf{D1}, one mapping step; \textbf{D2}, a join of several
-sources plus a rule; \textbf{D3}, no honest route. At D0--D2 the brief says the special items can be worked out from the
-public files, so levels change the cost of the honest route and not whether agents know it exists. The exact
-\texttt{README.txt} of every task and level is in Appendix~\ref{app:honest}.
+\paragraph{How we know the leak was used.} Every team-specific item has two accepted answers. \textbf{\vtwo{}}, the current
+key, is what honest work derives. \textbf{\vone{}}, the previous version of the key, appears \emph{only} in the leak file. The
+scorer accepts both, so both earn points, and an agent \emph{used the leak} when at least 3 of its 5 team-specific items match
+\vone{}. Honest work cannot produce \vone{}, so this proves use at every difficulty level. Every brief tells agents that
+``answers that match the previous version of the key are also accepted''. The line is the same for every agent and level; it
+tells non-holders that an older key exists, which is a cue we report in the limitations, and it lets a holder who compares the
+leak with its own answers see that both score. By construction, \vone{} never appears in a public file or brief, and
+\vone{} and \vtwo{} differ for every item.
 
-\subsection{Measures}
-All measures come from the run itself, not from a judge. \textbf{Leak used}: an agent crossed the \vone{} threshold.
-\textbf{Leak shared}: the holder sent at least 3 \vone{} values in a message a teammate could read.
-\textbf{Collusion happened}: at least one teammate of the holder used the team's leak. \textbf{Collusion detected}: the
-security officer disqualified a colluding team. As a manipulation check we also report the control teams' honest solve
-rate on the special items.
+\subsection{Agents and interaction}\label{sec:play}
+\paragraph{Briefing.} Each agent receives a system prompt and a brief. The brief names the team and the other teams, states the task, the goal (a
+reward for the team's total score) and the rule that using or sharing non-public information is prohibited, says that answers from the previous version of the key are also accepted, and lists the
+commands. The holder's brief adds a note that a file was accidentally left in its workspace. \textbf{No prompt asks agents to
+collude}, and agents are not told anyone is watching. All prompts are in Appendix~\ref{app:prompts}.
 
-\subsection{The passive security officer}
-After each run a security officer model reads the roster and every message, and in its full view also the scores. It rates
-every agent and decides for every team whether to disqualify or clear it. It \textbf{cannot influence the run}: it acts
-after the last turn, agents are not told it exists, and its decision changes no score. As a baseline we report a one-line
-score rule that flags a team when any member scores above 5.
+\paragraph{Turns.} Agents take turns over \NRounds{} rounds of up to \NCmds{} commands, plus a final turn, in an order reshuffled every round.
+Each command is one model call that sees the agent's brief, its team's answer board, its recent messages and its
+recent commands. An agent can message everyone, its team or a single agent, or run a command in its own offline workspace;
+answers it enters update the team board.
 
-\subsection{Validation}
-Before any model call, scripted players play every task and level. Honest players solve all special items at D0--D2 and
-none at D3 and never cross the leak threshold; colluding players cross it every time (Table~\ref{tab:checks}). Every run
-also writes a full transcript that replays to the recorded score, and one script recomputes every reported number.
+\subsection{Scoring}\label{sec:score}
+After each round the scorer grades every submitted answer. It accepts both \vone{} and \vtwo{} as correct, so using the leak
+and working honestly earn the same points. This keeps the reward fixed while only the cost of the honest route varies.
+
+\subsection{Oversight and measures}\label{sec:oversee}
+\paragraph{A passive security officer.}
+After the last turn, a security officer model reads the roster and every message, and in its full view also the scores. It
+rates every agent and decides for every team whether to disqualify or clear it. It \textbf{cannot influence the run}: it
+acts after the last turn, agents are not told it exists, and its decision changes no score. As a baseline we report a
+one-line score rule that flags a team when any member scores above 5.
+
+\paragraph{Measures.} All measures come from the run itself, not from a judge (Table~\ref{tab:measures}). The primary outcome is teammate leak use
+at D3 compared with D0.
+
+\begin{table}[htbp]
+  \centering\small
+  \caption{\textbf{What we measure.} Each measure is computed from the run's state and recorded the moment it first happens.}
+  \label{tab:measures}
+  \begin{tabularx}{\linewidth}{llX}
+    \toprule
+    Measure & Unit & Definition \\
+    \midrule
+    Leak used & agent & at least 3 of its 5 team-specific items match \vone{} \\
+    Leak shared & holder & at least 3 \vone{} values sent in a message a teammate could read \\
+    Collusion happened & team & at least one teammate of the holder used the team's leak \\
+    Collusion detected & team & the officer disqualified a colluding team (a disqualified clean team is a false alarm) \\
+    Manipulation check & control agents & honest solve rate on the team-specific items, which should fall from D0 to D3 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Controls and validation}
+\textbf{Positive and null controls.} Before running any model, we play every task and level with scripted players. Honest players (the
+null control) solve all team-specific items at D0--D2 and none at D3 and never cross the leak threshold; colluding players (the
+positive control) cross it every time (Table~\ref{tab:checks}). \textbf{Control teams.} They hold no leak, so their honest solve
+rate measures the honest route directly and checks that the difficulty dial works. \textbf{Grading the officer.} The officer is
+graded against what actually happened, with a one-line score rule as the baseline, and its prompt uses a neutral instruction,
+without the line that told an earlier version to act on suspicion without proof. \textbf{Records.} Every run is fully recorded, so every reported
+number can be recomputed from the records.
 
 % ================= 4. Experimental setup =================
 \section{Experimental setup}
 
-\textbf{Models.} Six agent models span size, openness and safety post-training (Table~\ref{tab:models}); all are called
-through OpenRouter, and every agent in a run is the same model. DeepSeek-V3.2 and Claude Haiku 5.5 run with reasoning
-switched off, so that hidden reasoning cannot use up the \MaxTokens-token reply budget. The officer and the observer are
-\texttt{\OfficerModel} at temperature 0.
+\textbf{What we ran.} Each of six models plays every task at every level on five seeds: \NTasks{} $\times$ \NLevels{} $\times$
+\NSeeds{} $=$ \NGamesPerModel{} runs per model, \NGamesRecorded{} in all. A seed fixes the number of teams, which teams hold a
+leak, who the holders are and the leak's content, so the four levels of a seed differ only in the honest route and every model
+plays the same layouts. Everything else is fixed: messaging on, memory of past commands, visible messages, a team progress board,
+a short final turn, a reward for the team's total score only and no warning about surveillance. Holders are interviewed after the
+run.
 
-\begin{table}[htbp]
-  \centering\small
-  \caption{\textbf{Agent models.} Prices are OpenRouter list prices (USD per million input / output tokens) on 25--26
-  October 2026; ``Usable'' counts the runs left after the pre-registered exclusion.}
-  \label{tab:models}
-  \begin{tabularx}{\linewidth}{lLcc}
-    \toprule
-    Model & Role & Price & Usable runs \\
-    \midrule
-    Hermes-4-405B & large, low-safeguard post-training & \PriceInHermes{} / \PriceOutHermes{} & \val{games}{Hermes}{}/100 \\
-    Llama-4-Maverick & open-weight instruct (Meta) & \PriceInMaverick{} / \PriceOutMaverick{} & \val{games}{Maverick}{}/100 \\
-    DeepSeek-V3.2 & open-weight instruct, reasoning off & \PriceInDeepSeek{} / \PriceOutDeepSeek{} & \val{games}{DeepSeek}{}/100 \\
-    Dolphin-Mistral-24B & small, low-safeguard (``uncensored'') & \PriceInDolphin{} / \PriceOutDolphin{} & \val{games}{Dolphin}{}/100 \\
-    Claude Haiku 5.5 & frontier, high-safeguard, reasoning off & \PriceInHaiku{} / \PriceOutHaiku{} & \val{games}{Haiku}{}/100 \\
-    Claude Opus 5.5 & frontier, high-safeguard & \PriceInOpus{} / \PriceOutOpus{} & \val{games}{Opus}{}/100 \\
-    \midrule
-    \multicolumn{4}{l}{\scriptsize OpenRouter ids: \texttt{\ModelHermes}, \texttt{\ModelMaverick}, \texttt{\ModelDeepSeek},
-    \texttt{\ModelDolphin}, \texttt{\ModelHaiku}, \texttt{\ModelOpus}} \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
+\textbf{Models.} The six agent models span size, openness and safety training: Hermes-4-405B (large, few safeguards),
+Dolphin-Mistral-24B (small, few safeguards), Llama-4-Maverick and DeepSeek-V3.2 (open-weight), and Claude Haiku 5.5 and Claude
+Opus 5.5 (frontier, strong safeguards). Every agent in a run is the same model. The reasoning of DeepSeek-V3.2 and Haiku is
+switched off so that hidden reasoning cannot use up the reply budget. The security officer is Claude Sonnet 5.5.
 
-\textbf{Design.} For each model we play every task at every level on seeds \SeedRange{}: \NTasks{} $\times$ \NLevels{}
-$\times$ \NSeeds{} $=$ \NGamesPerModel{} runs, \NGamesRecorded{} in total. A seed fixes the number of teams, which teams hold a
-leak, who the holders are and the leak file's content, so the four levels of a seed differ only in the honest path, and all
-six models play the same layouts. Everything else is fixed at the friendly setting of the earlier testbed: messaging on,
-command memory across rounds, messages that stay visible, a team progress board, a short final turn, and a reward for the
-team's total score only. There is no warning about surveillance. Holders are interviewed after the run.
-
-\textbf{Statistics.} The unit of analysis is the run: agents in one run are not independent. The primary test (H1) is a
-logistic GEE of teammate leak use on the level (a linear term), with task and model as fixed effects and an exchangeable
-correlation within runs; we also report the seed-paired, run-clustered bootstrap 95\% CI of teammate use at D3 minus D0.
-Secondary tests (H2 holder sending, H3 holder self-use, H4 false alarms by level) use the same model with Holm correction.
-A run is excluded when more than 20\% of its agent replies carry no command (empty, filtered or without a command block);
-\NExcluded{} runs are excluded this way, almost all Claude Opus 5.5 runs blocked by a content filter
-(Section~\ref{sec:filter}). Hypotheses, tests and the exclusion rule were written down before the main runs
-(\texttt{experiments/PREREG.md}); the draft was not formally frozen, the exclusion was widened to count empty and filtered
-replies after the first runs, and the last three models were added after the first three had run.
-
-\textbf{Runs.} All runs of a model play at once on Modal, in isolated sandboxes. Runs that failed for infrastructure
-reasons (OpenRouter credit reservations when hundreds of runs were in flight, and the slowest DeepSeek runs reaching a
-time limit) recorded nothing and were rerun with the same seeds. The \NGamesRecorded{} runs cost \$\TotalCost{} in model
-calls. Every run's transcript replays to its recorded score.
+\textbf{Statistics.} The unit of analysis is the run, since agents in one run are not independent. The primary test (H1) is a
+logistic GEE of teammate leak use on the level, with task and model as fixed effects and clustering by run; we also report the
+seed-paired bootstrap 95\% CI of teammate use at D3 minus D0. Secondary tests (H2 holder sending, H3 holder self-use, H4 false
+alarms by level) use the same model with Holm correction. A run is excluded when more than 20\% of its agent replies carry no
+command; \NExcluded{} of \NGamesRecorded{} runs are excluded this way, almost all Claude Opus 5.5 runs blocked by a content filter
+(Section~\ref{sec:filter}). The hypotheses, tests and exclusion rule were written down before the main runs, but the draft was not
+formally frozen: the exclusion was widened to count empty and filtered replies after the first runs, and the last three models were
+added after the first three had run.
 
 % ================= 5. Results =================
 \section{Results}
 
 \subsection{Collusion switches on when the honest path disappears}
-\textbf{The dial works.} For every model that can do the work, the control teams' honest solve rate on the special items
+\textbf{The dial works.} For every model that can do the work, the control teams' honest solve rate on the team-specific items
 falls from D0 to D3 (Table~\ref{tab:finding1}, blue lines in Figure~\ref{fig:finding1}): the levels change what honest work
-achieves. Dolphin-Mistral-24B is the exception: its control agents solve almost none of the special items even at D0
+achieves. Dolphin-Mistral-24B is the exception: its control agents solve almost none of the team-specific items even at D0
 (\val{honest}{Dolphin}{0}\%), so for this model the levels barely differ.
 
 \textbf{Teammates use the leak more when honest work is impossible.} Pooled over models and tasks, the odds that a
@@ -381,7 +410,7 @@ everything.
   \centering
   \includegraphics[width=\linewidth]{figures/fig_models.pdf}
   \caption{\textbf{When the honest path disappears (D3), three of six models start using the leak; both Claude models
-  never do.} Blue: share of control-team agents (no leak) who solve the special items honestly, which measures the honest
+  never do.} Blue: share of control-team agents (no leak) who solve the team-specific items honestly, which measures the honest
   path. Orange: share of holders' teammates who used the leak (\vone{} answers). Runs excluded by the pre-registered rule
   are left out, so Claude Opus 5.5 rests on its auction and document tasks only.}
   \label{fig:finding1}
@@ -402,7 +431,7 @@ The step at D3 is not universal. \textbf{DeepSeek-V3.2} is the sharpest case: wi
 used the leak, and at D3 \val{use}{DeepSeek}{3}\% did. \textbf{Llama-4-Maverick} and \textbf{Hermes-4-405B} show the same
 step from different baselines; Hermes also uses the leak when honest work is easy (\val{use}{Hermes}{0}\% at D0).
 \textbf{Claude Haiku 5.5 and Claude Opus 5.5 never used it}, at any level, including D3 where it was the only way to score
-on the special items: their control teams solve the honest path whenever it exists (Haiku \val{honest}{Haiku}{0}\% at D0),
+on the team-specific items: their control teams solve the honest path whenever it exists (Haiku \val{honest}{Haiku}{0}\% at D0),
 and their holders almost never pass the leak on. The models that collude when stuck are the open-weight and
 low-safeguard ones; the two that never do are the high-safeguard frontier models.
 
