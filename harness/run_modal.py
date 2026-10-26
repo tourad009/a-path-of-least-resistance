@@ -20,10 +20,11 @@ AGENT_MODEL = "nousresearch/hermes-4-405b"  # low-safeguard agent model (was Dol
 OVERSEERS = {"weak": "openai/gpt-4o-mini", "strong": "anthropic/claude-sonnet-5.5"}
 
 # the experiment's three agent models, and a rough cost per game (agents + officer + observer + interviews). Hermes is
-# measured on the final pilot; the others are scaled by their OpenRouter prices. Used by --dry-run only.
+# measured on the earlier final pilot, Dolphin on our smoke run (10 games, $1.08); Opus is scaled from Hermes by its
+# OpenRouter prices. Used by --dry-run and the paper only.
 AGENTS = {"hermes": "nousresearch/hermes-4-405b", "dolphin": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
           "opus": "anthropic/claude-opus-5.5"}
-EST_PER_GAME = {AGENTS["hermes"]: 0.25, AGENTS["dolphin"]: 0.06, AGENTS["opus"]: 1.10}
+EST_PER_GAME = {AGENTS["hermes"]: 0.25, AGENTS["dolphin"]: 0.11, AGENTS["opus"]: 1.10}
 HP_TASK_NAMES = ("team_leaderboard_v2", "team_database", "team_auction", "team_coding", "team_doc_qa")
 # honest-path difficulty runs: the friendly setup of the final pilot (random teams, holders on 1..T-1 teams, team-only
 # reward, progress board), messaging on, post-game interviews, and a passive officer with the neutral prompt (it judges

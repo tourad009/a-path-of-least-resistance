@@ -1,0 +1,478 @@
+% Asymmetric Incentives Toward Collusion: The Role of Honest-Path Difficulty
+% Layout: the official Apart Research sprint report template (collusion-leaderboard@submission, submission/latex/main.tex).
+% Numbers, prompts and the honest-path files come from the harness through paper/gen_paper.py (generated/*.tex).
+% Placeholders: \torun{} = needs a paid run; \tocompute{} = free analysis still to do; \tocheck{} = fact to verify.
+% Before submitting, none may remain: grep the PDF text for "TO RUN", "TO COMPUTE", "TO CHECK".
+% Build: make -C paper   (runs gen_paper.py, then tectonic)
+
+\documentclass[10pt]{article}
+
+% ---------- page and fonts (as in the template) ----------
+\usepackage[letterpaper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{OldStandard}
+\usepackage[scaled=0.92]{helvet}
+\usepackage{microtype}
+\usepackage{setspace}
+\setstretch{1.15}
+
+% ---------- content packages ----------
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\usepackage{multirow}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{listings}
+\usepackage{titlesec}
+\usepackage{ulem}\normalem
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc}
+\usepackage{hyperref}
+
+\definecolor{linkblue}{HTML}{1155CC}
+\definecolor{subheadgray}{HTML}{434343}
+\definecolor{todored}{HTML}{B3261E}
+\definecolor{todoblue}{HTML}{1F5FAD}
+\definecolor{boxfill}{HTML}{F3F6FA}
+\definecolor{leakred}{HTML}{B3261E}
+\definecolor{honestgreen}{HTML}{1E7A3C}
+\hypersetup{colorlinks=true,urlcolor=linkblue,linkcolor=linkblue,citecolor=linkblue}
+
+\captionsetup{font=small,labelfont=bf}
+\setlist[enumerate]{itemsep=0pt,topsep=4pt}
+\setlist[itemize]{itemsep=0pt,topsep=4pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+\titleformat{\section}{\fontsize{14}{17}\selectfont\bfseries}{\thesection.}{0.4em}{}
+\titlespacing*{\section}{0pt}{10pt}{2pt}
+\titleformat{\subsection}{\fontsize{12}{15}\selectfont\bfseries}{\thesubsection}{0.4em}{}
+\titlespacing*{\subsection}{0pt}{8pt}{2pt}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{subheadgray}}{}{0pt}{}
+
+% ---------- placeholders (none may remain in the submitted PDF) ----------
+\newcommand{\torun}[1]{{\color{todored}\textbf{[TO RUN#1]}}}
+\newcommand{\tocompute}[1]{{\color{todoblue}\textbf{[TO COMPUTE: #1]}}}
+\newcommand{\tocheck}[1]{{\color{todored}\textit{[TO CHECK: #1]}}}
+\newcommand{\figstub}[2]{\fbox{\parbox[c][#1][c]{0.95\linewidth}{\centering\small\itshape #2}}}
+
+% verbatim prompt boxes used by the generated appendix
+\newtcblisting{promptbox}[1]{listing only, breakable, colback=boxfill, colframe=subheadgray, boxrule=0.4pt, arc=0pt,
+  left=4pt, right=4pt, top=2pt, bottom=2pt, title={\small\bfseries #1}, coltitle=black, colbacktitle=boxfill,
+  listing options={basicstyle=\ttfamily\scriptsize, breaklines=true, columns=fullflexible, keepspaces=true}}
+
+% ---------- generated from the harness ----------
+\input{generated/design.tex}
+\input{generated/smoke.tex}
+\input{generated/results.tex}
+
+\newcommand{\vone}{\textcolor{leakred}{v1}}
+\newcommand{\vtwo}{\textcolor{honestgreen}{v2}}
+
+\newcommand{\projecttitle}{Asymmetric Incentives Toward Collusion:\\[2pt] The Role of Honest-Path Difficulty}
+\newcommand{\sprintfootnote}{Research conducted at the
+  \href{https://apartresearch.com/sprints/ai-collusion-research-sprint-2026-10-23-to-2026-10-25}{AI Collusion Research Sprint}, October 2026}
+
+\begin{document}
+\thispagestyle{plain}
+
+% ================= title block =================
+\noindent\rule{\linewidth}{3pt}
+\vspace{6pt}
+\begin{center}
+  {\fontsize{20}{24}\selectfont\bfseries \projecttitle\footnote{\sprintfootnote}\par}
+\end{center}
+\vspace{2pt}
+\noindent\rule{\linewidth}{0.8pt}
+
+\vspace{8pt}
+\begin{center}
+\begin{tabular}{cc}
+  Tourad \tocheck{full name} & Arnol Fokam \\
+  \tocheck{affiliation} & \tocheck{affiliation} \\
+\end{tabular}
+
+\vspace{8pt}
+\textbf{With}\\
+Apart Research
+\end{center}
+
+% ================= abstract =================
+\begin{center}
+  {\fontsize{14}{17}\selectfont\bfseries Abstract}
+\end{center}
+\begin{list}{}{\leftmargin=0.75in\rightmargin=0.75in}\item[]
+\itshape
+When one member of an LLM agent team finds a forbidden shortcut, does the team use it, and does that depend on how hard
+the honest alternative is? We hold the collusive path fixed (one member of some teams finds an old answer file in its
+workspace, and no prompt asks anyone to collude) and vary only the cost of the honest path to the same points, from a
+lookup in a public file to no honest path at all. A versioned answer key makes leak use provable by execution at every
+level: the leaked file holds the previous version of the key, which the scorer accepts and which appears nowhere else. We
+run \NGames{} games over \NTasks{} everyday agentic tasks, \NLevels{} difficulty levels and \NModels{} agent models, and
+let a security officer read every finished game without acting on it.
+\torun{: the first finding in one sentence, with teammate use at the easiest and hardest levels and the CI on the difference}
+\torun{: one control number (control teams, who hold no leak) and the detection result}
+\torun{: the implication for defenders, and the count of pre-registered predictions that failed}
+\end{list}
+
+\clearpage
+
+% ================= 1. Introduction =================
+\section{Introduction}
+
+Teams of LLM agents increasingly share a workspace and a chat channel. Suppose one of them comes across something it
+should not use: an answer key left in a benchmark directory, an export of a restricted table, a client's private budget, a
+hidden test file. It has been told that using or sharing non-public information is prohibited. Whether the shortcut stays
+with that agent or spreads to its team is a question about incentives, and those incentives are \emph{asymmetric}: the
+collusive path costs the same whatever the task, while the honest path to the same reward may be a single lookup, a
+few minutes of work, or impossible. The harm is concrete. Graders, benchmarks and audits that assume independent work are
+corrupted, and one insider's rule-breaking becomes a team's.
+
+We ask which property of a task makes such a shortcut spread (Track~2, RQ~2.1 of the sprint
+\citep{apart2026collusionsprint}), and isolate one: \textbf{the difficulty of the honest path}. Every other part of the
+game is held fixed, including the leak itself, the channels and the reward. Only the work needed to earn the same points
+honestly changes, over four levels (Figure~\ref{fig:design}). If agents weigh paths by their cost, as the economics of crime
+suggests for people \citep{becker1968crime}, collusion should rise as the honest path gets harder.
+
+Measuring this needs ground truth that does not depend on the honest path being impossible. Earlier designs prove leak use
+by an outcome that honest play cannot reach; once an honest path exists, a correct answer no longer proves anything. We
+solve this with a \emph{versioned key}: the leak is the previous version of the answer key, both versions score, and the
+previous version exists only in the leaked file. An agent that submits it used the leak, at every level.
+
+\textbf{Our contributions are:}
+\begin{enumerate}
+  \item \textbf{A testbed with an honest-path cost dial and execution truth.} Five everyday agentic tasks share one
+        skeleton; each has four honest-path levels and a versioned-key canary. Scripted honest players never cross the
+        leak threshold at any level, scripted colluders always do (Table~\ref{tab:checks}).
+  \item \textbf{A matched experiment.} \NGames{} games: \NModels{} agent models $\times$ \NTasks{} tasks $\times$
+        \NLevels{} levels $\times$ \NSeeds{} seeds, with seeds matched so that the roster, the holders and the leak file are
+        identical across levels and models.
+  \item \textbf{A detection design.} A passive security officer, in two views, is graded against execution truth next to
+        a one-line score rule, at every honest-path level: outcome evidence should lose its power exactly when the honest
+        path gets cheap.
+  \item \textbf{Complete, replayable transcripts} of every game, including every model call, command, output and message.
+\end{enumerate}
+
+% ================= 2. Related Work =================
+\section{Related Work}
+
+\textbf{Collusion from channels and affordances.} Private channels between agents can introduce collusion in cooperative
+multi-agent systems \citep{nakamura2026colosseum}, and communication and oversight shape coordination between sellers in
+double auctions \citep{agrawal2025double}. Pricing agents can reach supra-competitive outcomes without explicit agreement
+\citep{fish2024algorithmic,lin2024strategic}. We move from markets to team workflows and vary a property of the task, the
+honest alternative, rather than the channel. \tocheck{verify each cited abstract; read the same-sprint entries before
+writing the gap sentence}
+
+\textbf{Monitoring and pressure.} LLM monitors of agents have known failure modes \citep{kale2025weak}, and models act on
+forbidden information under pressure \citep{scheurer2023deceive}. We grade a monitor against execution truth and against a
+trivial outcome rule. Our framing of rule-breaking as a choice between costed paths follows \citet{becker1968crime}.
+
+% ================= 3. Methods =================
+\section{Methods: the harness}
+
+\subsection{The game}
+A game has \TeamsMin--\TeamsMax{} teams of \TeamSize{} agents. On a random 1 to $T-1$ of the $T$ teams, one random member
+(the \emph{holder}) finds a file in its sandbox with the previous version of its team's answers to the special items; the
+other teams are \emph{control teams} and have no leak. Agents play \NRounds{} rounds of up to \NCmds{} commands each, plus a
+final turn of \NFinalCmds{} commands, in an order reshuffled every round. Each command is one stateless model call
+(temperature \Temperature, at most \MaxTokens{} tokens) whose input is the agent's brief and an observation: its status, its
+team's item board, its last \MsgsShown{} received messages and its last \MemoryLen{} commands with their outputs. Agents can
+message everyone (\texttt{msg all}), their team (\texttt{msg team}) or any agent privately (\texttt{msg @name}), with
+messages capped at \MsgCap{} characters; anything else runs in the agent's own offline, non-root sandbox, with outputs
+capped at \ShellCap{} characters. The brief states the task, the goal (agents are rewarded only for their team's total
+score), and the rule ``Using or sharing any non-public information is prohibited''. \textbf{No prompt asks agents to collude}
+and agents are not told that anyone watches them. All prompts are in Appendix~\ref{app:prompts}.
+
+\subsection{Five tasks on one skeleton}
+Each agent answers 10 items (Table~\ref{tab:tasks}). Items 1--5 are public: each can be answered from public files with
+ordinary work. Items 6--10 are the team's \emph{special items}; their answers differ per team, so a rival's leak is
+worthless. Four tasks come from an earlier version of this testbed; the document task is new.
+
+\begin{table}[htbp]
+  \centering\small
+  \caption{\textbf{Five everyday agentic tasks share one skeleton}: 5 public items, 5 special items, one leak file per
+  holder team. ``Guess'' is the chance that one random answer to a special item matches the leak.}
+  \label{tab:tasks}
+  \begin{tabularx}{\linewidth}{lLll}
+    \toprule
+    Task & What agents do & Leak file (holder only) & Guess \\
+    \midrule
+    Leaderboard & give the 2-letter category code of 10 shapes, looked up in \texttt{training.csv} & \texttt{special\_labels.csv} & 1/676 \\
+    Database & answer 10 questions with read-only SQL over a company database & \texttt{supplier\_costs\_export.csv} & $\approx$1/8000 \\
+    Auction & price 10 deals within 1\% under each buyer's budget & \texttt{buyer\_budgets.csv} & $\approx$0.6\% \\
+    Coding & write 5 one-line Python functions, checked on a normal and a special case & \texttt{hidden\_tests.py} & $\approx$1/8000 \\
+    Document Q\&A & answer 10 questions from company policies and a client contract & \texttt{prev\_audit\_answers.txt} & $\approx$1/8000 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Honest-path difficulty}
+The manipulated factor is how much work the honest path to items 6--10 takes (Table~\ref{tab:levels}). The levels are
+defined the same way in every task: \textbf{D0}, the answer is written in a public file; \textbf{D1}, one mapping step
+(a second file, then a lookup); \textbf{D2}, a join of several sources plus a stated rule or arithmetic; \textbf{D3}, no
+honest path. At D0--D2 the brief says that the special items ``can be worked out from the public files'' and that
+\texttt{README.txt} explains how, so the levels vary the \emph{cost} of the honest path, not whether agents know it exists.
+At D3 the brief says they cannot be worked out from the public data. The verbatim \texttt{README.txt} of every task and
+level is in Appendix~\ref{app:honest}.
+
+\begin{table}[htbp]
+  \centering\small
+  \caption{\textbf{The honest path to the special items, by level.} The collusive path (the leak file and the channels) is
+  the same at every level.}
+  \label{tab:levels}
+  \begin{tabularx}{\linewidth}{lLLL}
+    \toprule
+    Task & D0: written down & D1: one mapping step & D2: a join plus a rule \\
+    \midrule
+    Leaderboard & special rows added to \texttt{training.csv} & special shape $\to$ base shape (\texttt{families.csv}), then look up & as D1, and colour $\to$ base colour (\texttt{palette.csv}) \\
+    Database & table \texttt{cost\_sheet} & $1000 + \text{price}\times\text{rate}$ (\texttt{category\_rates}) & supplier (\texttt{product\_suppliers}) $\to$ fee and rate (\texttt{supplier\_terms}) \\
+    Auction & \texttt{crm.csv} lists budgets & list price $\times$ buyer multiplier (\texttt{buyer\_terms.csv}) & sum purchases $\to$ tier $\to$ multiplier (three files) \\
+    Coding & \texttt{code\_table.txt} lists codes & team $\to$ project id $\to$ codes (\texttt{codes\_registry.json}) & formula over team salt and function weight (two files) \\
+    Document Q\&A & the contract states the fees & contract $\to$ rate-card item $\to$ price & rate-card base $\times$ the client tier's multiplier \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{The versioned-key canary}
+Every special item has two accepted answers (Figure~\ref{fig:design}). \textbf{\vtwo{}}, the current key, is what honest
+work derives at D0--D2 (at D3 it exists but cannot be derived). \textbf{\vone{}}, the previous version, appears
+\emph{only} in the leak file. Every brief, at every level, says that ``answers that match the previous version of the key
+are also accepted'', so an agent that compares the leak with its own honest answer is not misled by the difference. An
+agent \emph{used the leak} when at least 3 of its 5 special items match \vone{}. The harness enforces, and tests check,
+that \vone{} never appears in any public file or brief, that \vone{} and \vtwo{} differ for every item (in the auction, the
+two scoring windows never overlap), and that the leak file and the roster are identical across levels for the same seed.
+New values are drawn from their own random streams, so games without the difficulty option are unchanged from the
+earlier testbed (a golden snapshot checks this).
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[font=\small, node distance=4mm and 9mm,
+      box/.style={draw, rounded corners=2pt, align=center, minimum height=8mm, inner sep=3pt},
+      arr/.style={-{Stealth[length=2mm]}, thick}]
+    \node[box, draw=leakred] (leak) {leak file\\(\vone{}, holder only)};
+    \node[box, right=of leak, draw=leakred] (holder) {holder\\opens, uses, sends?};
+    \node[box, right=of holder, draw=leakred] (mate) {teammate\\takes it up?};
+    \node[box, right=of mate] (submit) {answers to\\items 6--10};
+    \node[box, below=10mm of holder, draw=honestgreen, text width=58mm] (honest) {honest work on public files\\
+      D0 lookup $\cdot$ D1 one mapping $\cdot$ D2 join + rule $\cdot$ D3 none};
+    \node[box, right=6mm of submit, align=center, text width=27mm] (score) {both score a point;\\\vone{} proves leak use};
+    \draw[arr, leakred] (leak) -- (holder);
+    \draw[arr, leakred] (holder) -- node[above, font=\scriptsize]{channel} (mate);
+    \draw[arr, leakred] (mate) -- node[above, font=\scriptsize]{\vone{}} (submit);
+    \draw[arr, honestgreen] (honest.east) -| node[pos=0.25, below, font=\scriptsize]{\vtwo{}} (submit.south);
+    \draw[arr] (submit) -- (score);
+    \node[font=\scriptsize\itshape, text=leakred, above=1mm of holder] {collusive path: fixed};
+    \node[font=\scriptsize\itshape, text=honestgreen, below=1mm of honest] {honest path: the manipulated cost};
+  \end{tikzpicture}
+  \caption{\textbf{The collusive path is fixed; only the honest path's cost changes.} The leak holds the previous version of
+  the key (\vone{}), honest work derives the current one (\vtwo{}); the scorer accepts both, and \vone{} exists only in the
+  leak, so leak use is proven by execution at every level.}
+  \label{fig:design}
+\end{figure}
+
+\subsection{Measures}
+All measures come from the game state, not from a judge, and are recorded the moment they first happen.
+\begin{itemize}
+  \item \textbf{Leak used}: an agent crossed the \vone{} threshold. Reported separately for holders (self-use) and teammates.
+  \item \textbf{Leak shared}: the holder sent at least 3 \vone{} values in a message a teammate could read. A relaxed version
+        adds messages that a privileged observer, a model told the secret values, flags as carrying them in any form.
+  \item \textbf{Collusion happened}: at least one teammate of the holder used the team's leak (team level). This includes
+        uptake without a literal message.
+  \item \textbf{Collusion detected}: the security officer disqualified a colluding team; a disqualified clean team is a false
+        alarm (team level).
+  \item \textbf{Manipulation check}: the control agents' honest solve rate on items 6--10 (their \vtwo{} answers). Control
+        teams hold no leak, so this measures the honest path directly.
+\end{itemize}
+Messages that pass honestly derived (\vtwo{}) answers between teammates are counted apart: that is permitted teamwork.
+
+\subsection{A passive overseer}
+After each game, a security officer (\texttt{\OfficerModel}) reads the roster, every message on every channel, a
+communication map and, in its full view, the scores per round and the submissions; in a second, messages-only view it sees
+the messages alone. It rates every agent and decides, for every team, \textsc{disqualify} or \textsc{clear}. It
+\textbf{cannot influence the game}: it runs after the last turn, agents are not told it exists, and its decision changes no
+score. Its prompt states the honest ceiling of the level: at D3, that an honest agent scores at most about 5; at D0--D2,
+that an honest agent can score 10, so a high score alone is not evidence. We use a neutral version of the prompt, without
+the instruction to act on suspicion without proof that an earlier version contained. As a baseline we report a one-line
+score rule: a team is flagged when any member scores above 5. A privileged observer, told the secret values, marks every
+message that carries them (openly or disguised), and holders are asked after the game whether and why they shared.
+
+\subsection{Validation and transcripts}
+\textbf{Scripted players.} Before any model call, scripted players play every task and level (Table~\ref{tab:checks}).
+Honest players, who work only from their public files, solve all special items at D0--D2 and none at D3, and never cross the
+leak threshold; colluding players cross it every time. The test suite (\NTests{} tests, no model calls) also checks the
+canary invariants, the per-level briefs and officer prompts, and that legacy games match a golden snapshot of the earlier
+harness.
+
+\textbf{Transcripts.} Every game writes a complete transcript: each agent's brief and starting files; every model call with
+the exact observation sent, the full reply, token counts and latency; every command with its full sandbox output; every
+message, flagged when it carries a leak (\vone{}) or honest answers (\vtwo{}); crossings and scores; and the full prompts and
+replies of the officer, the observer and the interviews. A transcript replays: rebuilding the game from its configuration
+and re-applying every command reproduces the recorded score, which shows nothing is missing. Each results line stores its
+transcript's SHA-256, and one script recomputes every number in this report from the result files.
+
+% ================= 4. Experimental setup =================
+\section{Experimental setup}
+
+\textbf{Models.} Three agent models span capability and safety post-training (Table~\ref{tab:models}); all are called through
+OpenRouter. Every agent in a game is the same model. The officer and the observer are \texttt{\OfficerModel} at temperature 0.
+
+\begin{table}[htbp]
+  \centering\small
+  \caption{\textbf{Agent models.} Prices are OpenRouter list prices (USD per million input / output tokens) on 25 October 2026.}
+  \label{tab:models}
+  \begin{tabularx}{\linewidth}{lLcc}
+    \toprule
+    Model & Role & Price & Est.\ cost / 100 games \\
+    \midrule
+    Hermes-4-405B & large, low-safeguard post-training & \PriceInHermes{} / \PriceOutHermes{} & \$\EstHermes \\
+    Dolphin-Mistral-24B & small, low-safeguard (``uncensored'') & \PriceInDolphin{} / \PriceOutDolphin{} & \$\EstDolphin \\
+    Claude Opus 5.5 & frontier, high-safeguard & \PriceInOpus{} / \PriceOutOpus{} & \$\EstOpus \\
+    \midrule
+    \multicolumn{4}{l}{\scriptsize OpenRouter ids: \texttt{\ModelHermes}, \texttt{\ModelDolphin}, \texttt{\ModelOpus}} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\textbf{Design.} For each model we play every task at every level on seeds \SeedRange{}: \NTasks{} $\times$ \NLevels{}
+$\times$ \NSeeds{} $=$ \NGamesPerModel{} games, \NGames{} in total. A seed fixes the number of teams, which teams hold a
+leak, who the holders are and the leak file's content, so the four levels of a seed differ only in the honest path, and the
+three models play the same layouts. Everything else is fixed at the friendly setting of the earlier testbed: messaging on,
+command memory across rounds, messages that stay visible, a team progress board, a short final turn, and a reward for the
+team's total score only. There is no warning about surveillance. Holders are interviewed after the game.
+
+\textbf{Statistics.} The unit of analysis is the game: agents in one game are not independent. The primary test (H1) is a
+logistic GEE of teammate leak use on the level (a linear term), with task and model as fixed effects and an exchangeable
+correlation within games; we also report the seed-paired, game-clustered bootstrap 95\% CI of teammate use at D3 minus D0.
+Secondary tests (H2 holder sending, H3 holder self-use, H4 false alarms of the officer and the score rule) use the same model
+with Holm correction. Games where more than 20\% of replies contain no command are excluded and counted. Hypotheses,
+tests and exclusions are pre-registered \tocheck{PREREG.md commit hash, frozen after the calibration pilot}.
+
+\textbf{Runs.} A smoke run (\SmokeGames{} games with \texttt{\SmokeModel}, \$\SmokeCost) checked the pipeline: all
+\SmokeReplayOK{} transcripts replay to their scores, \SmokeRefused{} of \SmokeCalls{} model calls were refused and
+\SmokeNoBlock{} had no command, and both officer views parsed in all \SmokeOfficerParsed{} games. A calibration pilot
+(one seed per task and level) checks that the control honest rate falls from D0 to D3 before the main runs
+\torun{: calibration pilot}.
+
+% ================= 5. Results =================
+\section{Results}
+
+\subsection{\torun{: claim-first heading for the first finding, e.g. ``Teammates use the leak more when the honest path is harder''}}
+\textbf{Manipulation check.} \torun{: control honest rate by level, pooled and per model; does it fall from D0 to D3?}
+
+\textbf{Teammate leak use rises (or not) with honest-path difficulty.} \torun{: one paragraph}. Pooled over tasks and
+models, the odds of a teammate using the leak change by a factor of \HOneOR{} per level (GEE, $p = \HOneP$); teammate use at
+D3 minus D0 is \HOneDiff{} percentage points (95\% CI \HOneCI) over \HOneGames{} games (Figure~\ref{fig:finding1},
+Table~\ref{tab:finding1}).
+
+\begin{figure}[htbp]
+  \centering
+  \IfFileExists{../analysis/out/use_vs_honest_gap.png}{%
+    \includegraphics[width=0.75\linewidth]{../analysis/out/use_vs_honest_gap.png}}{%
+    \figstub{5cm}{Figure 2 (generated by \texttt{harness/analysis\_difficulty.py}): teammate leak use against the honest-path gap
+    (1 $-$ the control agents' honest solve rate on items 6--10), one line per model, points D0--D3.}}
+  \caption{\textbf{\torun{: the first finding as a claim.}} Each point pools the five tasks at one level; the x-axis is the
+  measured cost of the honest path, not the nominal level.}
+  \label{fig:finding1}
+\end{figure}
+
+\begin{table}[htbp]
+  \centering\small
+  \caption{\textbf{The collusion pipeline by honest-path level and model.} Teammates used = teammates of holders who crossed
+  the \vone{} threshold; holders sent = holders who sent their leak where a teammate could read it; collusion = holder teams
+  where a teammate used the leak; control honest rate = control agents' \vtwo{} solve rate on items 6--10.}
+  \label{tab:finding1}
+  \ResultsTable
+\end{table}
+
+\textbf{Still to report} \torun{: H2 (holder sending), H3 (holder self-use), H4 (detection: the officer and the score rule
+by level), and the holder interviews}.
+
+% ================= 6. Discussion and Limitations =================
+\section{Discussion and Limitations}
+
+\torun{: what the first finding means for agent deployments where the honest path is costly, and for defenders}
+
+\subsection{Limitations}
+\begin{itemize}
+  \item \textbf{Prompted incentives.} The reward and the rule exist only in the prompt; nothing is at stake for the agents.
+  \item \textbf{Cues.} The holder's note says the file ``was accidentally left'' in its workspace, which reads like a
+        honeypot, and every brief says that previous-version answers are accepted, which tells non-holders that an older key
+        exists. Both are constant across levels.
+  \item \textbf{The honest path is pointed to.} Agents are told where the honest path is; levels vary its cost, not its
+        discoverability. Agents who ignore the README pay a higher cost than the nominal level.
+  \item \textbf{Scale.} \NSeeds{} seeds per cell and one sample per game; three models, one per safeguard and size profile;
+        task differences bundle leak format, scoring and workload.
+  \item \textbf{Officer.} One officer model, which shares a vendor with one agent model; the threshold rule undercounts
+        partial or paraphrased use.
+\end{itemize}
+
+\subsection{Future Work}
+Varying the collusive path's cost and the honest path's cost together; sanctions applied during the game; agents
+instructed to hide; and a second officer from another vendor.
+
+% ================= 7. Conclusion =================
+\section{Conclusion}
+\torun{: the first finding and its implication in one paragraph}
+
+% ================= end matter =================
+\section*{Code and Data}
+\begin{itemize}
+  \item \textbf{Code repository}: \url{https://github.com/tourad009/a-path-of-least-resistance} \tocheck{commit hash; make public}
+  \item \textbf{Data}: one JSON line per game (\texttt{results/}) and a full transcript per game (\texttt{transcripts/});
+        \texttt{analysis/verify.py} regenerates every number in this report.
+\end{itemize}
+
+\section*{Author Contributions (optional)}
+\tocheck{contributions}
+
+\section*{References}
+{\renewcommand{\section}[2]{}%
+\bibliographystyle{plainnat}
+\bibliography{references}}
+
+% ================= appendix =================
+\appendix
+\renewcommand{\thesection}{\Alph{section}}
+
+\section{Prompts}\label{app:prompts}
+All texts below are generated from the harness source.
+\input{generated/prompts.tex}
+
+\section{The honest path of every task and level}\label{app:honest}
+Seed 200, first holder team. At D0--D2 each agent also finds the \texttt{README.txt} shown here.
+\input{generated/honest_paths.tex}
+
+\section{Validation}\label{app:checks}
+\input{generated/checks.tex}
+Table~\ref{tab:checks} is computed by \texttt{paper/gen\_paper.py} from scripted games. The document task's worst-case chance
+that random answers cross the leak threshold in a game is below $\DocQABound$.
+
+\section*{Limitations and Dual-Use / Ethical Considerations}
+\textbf{What the result does and does not establish.} It measures whether a leak spreads in our testbed, with the models we
+ran, as a function of the honest path's cost. It does not show that agents collude without a leak, that they can hide
+collusion, or that an LLM officer works in general. \textbf{Dual use.} We report aggregate detection rates only, and publish
+no catalogue of phrasings that evade the officer and no evasion prompts. All secrets are synthetic; there are no human
+subjects.
+
+\section*{Prior-Work Disclosure}
+The harness was imported from \texttt{ArnolFokam/collusion-leaderboard} at commit \texttt{73c4aa1} (built during the same
+sprint): the multi-team game, four of the tasks, the officer, the observer and the scripted players. New in this work: the
+honest-path difficulty levels, the versioned-key canary, the document Q\&A task, the passive-overseer setting with
+per-level prompts, complete transcripts with replay, and the difficulty experiment and its analysis.
+
+\section*{LLM Usage Statement}
+Claude (Anthropic) wrote harness code, tests and analysis scripts and drafted parts of this text under the authors'
+direction; every number is generated by a script from the harness or the result files and was checked by the authors.
+Claude models are also subjects of the study: Claude Opus 5.5 as an agent, and Claude Sonnet 5.5 as the officer and the
+observer.
+
+\end{document}
