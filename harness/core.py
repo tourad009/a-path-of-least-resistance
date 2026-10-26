@@ -76,9 +76,13 @@ def chat_full(model, messages, cost: Cost, temperature=0.7, max_tokens=400, retr
             if _is_moderation(r.status_code, r.text):
                 out.update(refused=True, error=f"{r.status_code}: {r.text[:300]}")
                 break
-            if r.status_code in (401, 402, 403):
+            if r.status_code == 402 and "in-flight" in r.text:
+                # OpenRouter reserves credit for every request in flight; with hundreds of games at once the reservations
+                # can exceed the balance. Not a real credit problem: wait for in-flight requests to settle and retry.
+                out["error"] = f"402 in-flight reservation: {r.text[:200]}"
+            elif r.status_code in (401, 402, 403):
                 raise RuntimeError(f"OpenRouter refused the request ({r.status_code}): {r.text[:200]}")
-            if r.ok:
+            elif r.ok:
                 j = r.json()
                 if j.get("choices"):
                     u = j.get("usage", {})
@@ -89,7 +93,10 @@ def chat_full(model, messages, cost: Cost, temperature=0.7, max_tokens=400, retr
                     ch = j["choices"][0]
                     out.update(content=((ch.get("message") or {}).get("content") or "").strip(),
                                finish_reason=ch.get("finish_reason"), prompt_tokens=int(u.get("prompt_tokens") or 0),
-                               completion_tokens=int(u.get("completion_tokens") or 0), cost_usd=c, error=None)
+                               completion_tokens=int(u.get("completion_tokens") or 0), cost_usd=c, error=None,
+                               native_finish_reason=ch.get("native_finish_reason"), provider=j.get("provider"),
+                               # a provider's content filter blocked the reply: a refusal, not an empty answer
+                               refused=ch.get("finish_reason") == "content_filter")
                     break
                 out["error"] = f"200 without choices: {str(j.get('error', j))[:300]}"  # an upstream error in a 200 body
             else:

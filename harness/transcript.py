@@ -98,8 +98,8 @@ class Transcript:
     def call(self, r, i, obs, reply, cmd, meta, parse):
         meta = meta or {}
         self._ev("call", round=r, agent_index=i, observation=obs, reply=reply, command=cmd, parse=parse,
-                 **{k: meta.get(k) for k in ("finish_reason", "prompt_tokens", "completion_tokens", "cost_usd", "latency_s",
-                                             "refused", "error", "attempts")})
+                 **{k: meta.get(k) for k in ("finish_reason", "native_finish_reason", "provider", "prompt_tokens",
+                                             "completion_tokens", "cost_usd", "latency_s", "refused", "error", "attempts")})
 
     def command(self, task, r, i, cmd, out, before):
         self._ev("command", round=r, agent_index=i, agent=task.alias[i], command=cmd, output=out,

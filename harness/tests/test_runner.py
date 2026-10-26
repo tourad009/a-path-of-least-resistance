@@ -147,3 +147,22 @@ def test_rate_limits_are_retried_then_fail_loudly(monkeypatch):
     monkeypatch.setattr(core.requests, "post", lambda *a, **k: R(429, {}))
     with pytest.raises(core.APIFailure):
         core.chat_full("m", [], core.Cost(), retry_budget_s=0)
+
+
+def test_in_flight_credit_reservations_wait_but_real_credit_errors_stop(monkeypatch):
+    class R:
+        def __init__(self, code, body): self.status_code, self._b, self.headers = code, body, {}
+        ok = property(lambda self: self.status_code == 200)
+        text = property(lambda self: json.dumps(self._b))
+        def json(self): return self._b
+    good = {"choices": [{"message": {"content": ""}, "finish_reason": "content_filter"}], "usage": {"cost": 0.0}}
+    reserve = R(402, {"error": {"message": "would exceed your available credits given your current in-flight requests"}})
+    calls = iter([reserve, reserve, R(200, good)])
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    monkeypatch.setattr(core.requests, "post", lambda *a, **k: next(calls))
+    monkeypatch.setattr(core.time, "sleep", lambda s: None)
+    out = core.chat_full("m", [], core.Cost())
+    assert out["retries"] == 2 and out["refused"]          # the content filter counts as a refusal
+    monkeypatch.setattr(core.requests, "post", lambda *a, **k: R(402, {"error": {"message": "Insufficient credits"}}))
+    with pytest.raises(RuntimeError, match="402"):
+        core.chat_full("m", [], core.Cost())
