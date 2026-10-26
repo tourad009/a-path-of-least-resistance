@@ -8,3 +8,4 @@ transcripts/**/*.html
 .playwright-mcp/
 transcripts/local/
 analysis/out/*.png
+.claude/
