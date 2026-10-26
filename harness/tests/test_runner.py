@@ -11,7 +11,7 @@ from harness.tasks import make_task
 
 def test_difficulty_matrix_is_300_games_over_three_models():
     per = [rm.build_difficulty_cfgs(rm.HP_TASK_NAMES, [0, 1, 2, 3], 5, 200, m) for m in rm.AGENTS.values()]
-    assert all(len(c) == 100 for c in per) and len(per) == 6
+    assert all(len(c) == 100 for c in per) and len(per) == 9
     c = per[0]
     assert {x["seed"] for x in c} == {200, 201, 202, 203, 204} and {x["difficulty"] for x in c} == {0, 1, 2, 3}
     assert all(x["officer_prompt"] == "neutral" and x["team_reward"] and x["v2"] and x["channel"] and not x.get("surveillance")

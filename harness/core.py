@@ -33,7 +33,8 @@ NO_REASONING = {"reasoning": {"enabled": False}}
 MODEL_PARAMS = {
     # DeepSeek is served by several hosts, some very slow (calls up to ~2 min): route to the fastest one (same model)
     "deepseek/deepseek-v3.2": dict(extra={**NO_REASONING, "provider": {"sort": "latency"}}),
-    "anthropic/claude-haiku-5.5": dict(extra=NO_REASONING)}
+    "anthropic/claude-haiku-5.5": dict(extra=NO_REASONING),
+    "minimax/minimax-m2.5": dict(extra=NO_REASONING)}
 
 
 def _is_moderation(status, text):

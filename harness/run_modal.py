@@ -26,10 +26,13 @@ OVERSEERS = {"weak": "openai/gpt-4o-mini", "strong": "anthropic/claude-sonnet-5.
 AGENTS = {"hermes": "nousresearch/hermes-4-405b", "dolphin": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
           "opus": "anthropic/claude-opus-5.5",
           # second wave
-          "deepseek": "deepseek/deepseek-v3.2", "maverick": "meta-llama/llama-4-maverick", "haiku": "anthropic/claude-haiku-5.5"}
+          "deepseek": "deepseek/deepseek-v3.2", "maverick": "meta-llama/llama-4-maverick", "haiku": "anthropic/claude-haiku-5.5",
+          # third wave
+          "kimi": "moonshotai/kimi-k2-0905", "qwen": "qwen/qwen3-235b-a22b-2507", "minimax": "minimax/minimax-m2.5"}
 # Hermes measured on the earlier final pilot, Dolphin on our smoke run; the rest scaled by OpenRouter prices
 EST_PER_GAME = {AGENTS["hermes"]: 0.25, AGENTS["dolphin"]: 0.11, AGENTS["opus"]: 1.10,
-                AGENTS["deepseek"]: 0.12, AGENTS["maverick"]: 0.11, AGENTS["haiku"]: 0.09}
+                AGENTS["deepseek"]: 0.12, AGENTS["maverick"]: 0.11, AGENTS["haiku"]: 0.09,
+                AGENTS["kimi"]: 0.23, AGENTS["qwen"]: 0.09, AGENTS["minimax"]: 0.13}
 HP_TASK_NAMES = ("team_leaderboard_v2", "team_database", "team_auction", "team_coding", "team_doc_qa")
 # honest-path difficulty runs: the friendly setup of the final pilot (random teams, holders on 1..T-1 teams, team-only
 # reward, progress board), messaging on, post-game interviews, and a passive officer with the neutral prompt (it judges
@@ -283,7 +286,14 @@ def key_check() -> dict:
     key = _os.environ.get("OPENROUTER_API_KEY") or next(v for k, v in _os.environ.items() if "OPENROUTER" in k.upper())
     r = requests.get("https://openrouter.ai/api/v1/key", headers={"Authorization": f"Bearer {key}"}, timeout=30)
     d = r.json().get("data", {}) if r.ok else {"error": f"{r.status_code}: {r.text[:200]}"}
-    return {k: v for k, v in d.items() if k != "label"}
+    out = {k: v for k, v in d.items() if k != "label"}
+    # the account's own balance: a key limit can have room left while the account has run out of credit
+    c = requests.get("https://openrouter.ai/api/v1/credits", headers={"Authorization": f"Bearer {key}"}, timeout=30)
+    if c.ok:
+        cd = c.json().get("data", {})
+        out["account_credits"] = dict(total=cd.get("total_credits"), used=cd.get("total_usage"),
+                                      balance=round((cd.get("total_credits") or 0) - (cd.get("total_usage") or 0), 2))
+    return out
 
 
 @app.function(image=func_image, secrets=SECRETS, timeout=300)
@@ -452,7 +462,7 @@ def longest_first(cfgs):
     slower models first, then games with more agents (more model calls per round)."""
     from harness.tasks import make_task
     speed = {AGENTS["opus"]: 3, AGENTS["hermes"]: 2, AGENTS["deepseek"]: 2, AGENTS["maverick"]: 1, AGENTS["haiku"]: 1,
-             AGENTS["dolphin"]: 1}
+             AGENTS["dolphin"]: 1, AGENTS["kimi"]: 2, AGENTS["qwen"]: 1, AGENTS["minimax"]: 2}
     return sorted(cfgs, key=lambda c: (-speed.get(c.get("agent"), 2), -make_task(c).n_total))
 
 
