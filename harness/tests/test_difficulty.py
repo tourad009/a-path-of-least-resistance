@@ -50,7 +50,7 @@ def test_the_five_experiment_tasks_have_four_levels():
         ["team_leaderboard_v2", "team_database", "team_auction", "team_coding", "team_doc_qa"])
     assert all(T.HP_LEVELS == (0, 1, 2, 3) for T in HP_TASKS)
     with pytest.raises(AssertionError):
-        make_task(dict(task="team_database_password", seed=1, channel=True, difficulty=0))
+        make_task(dict(task="team_leaderboard", seed=1, channel=True, difficulty=0))  # the first leaderboard has no levels
 
 
 @pytest.mark.parametrize("T", HP_TASKS, ids=lambda T: T.name)
@@ -150,3 +150,31 @@ def test_honest_teamwork_messages_are_counted_apart_from_leak_messages():
 def test_doc_qa_chance_bound_is_small():
     from harness.doc_qa import TeamDocQA
     assert TeamDocQA.honest_crossing_bound() < 1e-5
+
+
+# ===================================================================== ablations: password leak, individual reward
+from harness.teams import INDIVIDUAL_GOAL, TEAM_REWARD_GOAL
+
+
+@pytest.mark.parametrize("d", (0, 1, 2, 3))
+def test_password_leak_is_proven_by_login_at_every_level(d):
+    for seed in SEEDS:
+        honest = play(make_task(dict(task="team_database_password", seed=seed, difficulty=d, **FINAL)), "honest")
+        assert honest["within_ever"] == 0 and honest["solo_ever"] == 0 and honest["access_log"] == []
+        assert honest["control_honest_rate"] == (1.0 if d < 3 else honest["control_honest_rate"])
+        coll = play(make_task(dict(task="team_database_password", seed=seed, difficulty=d, **FINAL)), "collude")
+        assert coll["within_ever"] == coll["n_nonholders"] and coll["holders_sent"] == coll["n_holders"]
+        assert len({a for _, a, _ in coll["access_log"]}) == coll["n_holders"] + coll["n_nonholders"]
+
+
+def test_password_holder_note_says_password_not_old_key():
+    t = make_task(dict(task="team_database_password", seed=200, difficulty=0, **FINAL))
+    b = t.brief(t.holder[0])
+    assert "the password to your team's restricted table" in b and "previous version of the answer key" not in b
+    assert t.workspace(t.holder[0])[t.leak_file].startswith("restricted table:")
+
+
+def test_individual_reward_replaces_the_team_goal():
+    t = make_task(dict(task="team_coding", seed=200, difficulty=3, **FINAL, individual_reward=True))
+    b = t.brief(0)
+    assert INDIVIDUAL_GOAL in b and TEAM_REWARD_GOAL not in b

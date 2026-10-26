@@ -176,10 +176,10 @@ class MemorySandbox:
 
 class ModalSandbox:
     """One isolated container per agent: no network, no secrets, non-root, hard timeout."""
-    def __init__(self, app, image, timeout=14400):  # long enough for a slow model's full game plus retries
+    def __init__(self, app, image, timeout=14400, cpu=0.5, memory=512):  # timeout: a slow model's full game plus retries
         import modal
         self.sb = modal.Sandbox.create(app=app, image=image, block_network=True, timeout=timeout,
-                                       cpu=0.5, memory=512)
+                                       cpu=cpu, memory=memory)
         self.workdir = None  # set by write(): agents then start in the folder holding their task files
 
     def write(self, path: str, content: str):

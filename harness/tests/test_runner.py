@@ -180,3 +180,18 @@ def test_reasoning_models_get_reasoning_switched_off(monkeypatch):
     sent.clear()
     core.LLMAgent("nousresearch/hermes-4-405b", core.Cost()).act("b", "o")
     assert "reasoning" not in sent
+
+
+def test_ablation_arms_and_their_result_files(monkeypatch, tmp_path, capsys):
+    from collections import Counter
+    cfgs = rm.build_ablation_cfgs(list(rm.ARMS))
+    n = Counter(c["arm"] for c in cfgs)
+    assert n["handover"] == 3 * 2 * 25 and n["password"] == 3 * 2 * 25 and n["dbmore"] == 3 * 2 * 20 and n["pushclaude"] == 25
+    assert all(c["sandbox"] == "small" for c in cfgs) and {c["difficulty"] for c in cfgs} == {0, 3}
+    assert all(c["agent"] == rm.AGENTS["haiku"] for c in cfgs if c["arm"] == "pushclaude")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(rm, "episode", NoRemote())
+    rm.main.info.raw_f(mode="ablations", arms="warning,password", tag="ab", dry_run=True)
+    out = capsys.readouterr().out
+    assert "difficulty-free" not in out and "ablations-hermes-4-405b-warning-ab.jsonl" in out
+    assert "ablations-deepseek-v3.2-password-ab.jsonl" in out and "ALL MODELS: 300 games" in out

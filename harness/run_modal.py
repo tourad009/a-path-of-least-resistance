@@ -38,6 +38,39 @@ DIFFICULTY_PRESET = dict(channel=True, rung="level0", v2=True, team_reward=True,
                          security=True, officer_prompt="neutral", officer_views=["full", "messages"])
 
 
+# Ablations: one change at a time against the main run (same seeds, so every comparison is paired with a main-run game).
+# Defaults: the three models that took the leak, levels D0 and D3, the five tasks, seeds 200-204. Pre-registered in
+# experiments/ABLATIONS.md.
+ABLATION_MODELS = ("hermes", "maverick", "deepseek")
+ARMS = {
+    "handover":    dict(change=dict(share_first=True)),            # the game posts the leak to the team for the holder
+    "ask":         dict(change=dict(teammate_asks=True)),          # a teammate asks the team for what items 6-10 need
+    "warning":     dict(change=dict(surveillance=True)),           # agents are told an officer reads everything
+    "norule":      dict(change=dict(no_rule=True)),                # no RULES line
+    "individual":  dict(change=dict(team_reward=False, individual_reward=True)),  # rewarded for one's own score only
+    "noteamchat":  dict(change=dict(levers={"team_channel": False})),
+    "messyleak":   dict(change=dict(levers={"easy_copy": False})),  # no one-line summary at the top of the leak
+    "nomemory":    dict(change=dict(levers={"keep_memory": False})),
+    "nomessaging": dict(change=dict(channel=False)),               # structural control: no messages at all
+    "neutralleak": dict(change=dict(leak_look="neutral"), tasks=("team_database", "team_coding", "team_doc_qa")),
+    "password":    dict(change={}, tasks=("team_database_password",), seeds=(200, 25)),  # the leak is a password
+    "dbmore":      dict(change={}, tasks=("team_database",), seeds=(205, 20)),  # answers leak on the password arm's seeds
+    "pushclaude":  dict(change=dict(share_first=True, no_rule=True), models=("haiku",), levels=(3,)),
+}
+
+
+def build_ablation_cfgs(arms, models=None):
+    out = []
+    for arm in arms:
+        spec = ARMS[arm]
+        start, n = spec.get("seeds", (200, 5))
+        for m in (models or spec.get("models", ABLATION_MODELS)):
+            for c in build_difficulty_cfgs(spec.get("tasks", HP_TASK_NAMES), spec.get("levels", (0, 3)), n, start, AGENTS[m]):
+                c.update(spec["change"], arm=arm, sandbox="small")
+                out.append(c)
+    return out
+
+
 def build_difficulty_cfgs(tasks, levels, seeds, seed_start, agent, extra=None):
     """Every (seed, task, level) game for one agent model. Seeds are matched across tasks, levels and models."""
     return [dict(task=n, seed=s, difficulty=d, agent=agent, **DIFFICULTY_PRESET, **(extra or {}))
@@ -55,25 +88,28 @@ def game_id(cfg, k):
     return f"{cfg['task']}-s{cfg['seed']}-{k:04d}"
 
 
-def new_sandbox(sb_app, tries=8):
+SANDBOX_SIZES = {"default": dict(cpu=0.5, memory=512), "small": dict(cpu=0.125, memory=256)}  # small: the ablations
+
+
+def new_sandbox(sb_app, tries=8, size="default"):
     """One agent sandbox. Modal sometimes refuses briefly under load (a launch once failed with PermissionDeniedError
     and worked minutes later), so wait and retry with jitter; no model has been called yet, so a retry costs nothing."""
     import random
     from harness.core import ModalSandbox
     for k in range(tries):
         try:
-            return ModalSandbox(sb_app, sandbox_image)
+            return ModalSandbox(sb_app, sandbox_image, **SANDBOX_SIZES[size])
         except modal.exception.Error:
             if k == tries - 1: raise
             time.sleep(min(60, 5 * 2 ** k) * random.uniform(0.5, 1.5))
 
 
-def new_sandboxes(sb_app, n):
+def new_sandboxes(sb_app, n, size="default"):
     """All of a game's sandboxes at once (in threads); if any fails, the ones made are closed and the error is raised."""
     from concurrent.futures import ThreadPoolExecutor
     made, errors = [], []
     with ThreadPoolExecutor(n) as pool:
-        for f in [pool.submit(new_sandbox, sb_app) for _ in range(n)]:
+        for f in [pool.submit(new_sandbox, sb_app, size=size) for _ in range(n)]:
             try: made.append(f.result())
             except Exception as e: errors.append(e)
     if errors:
@@ -155,7 +191,7 @@ MAX_GAMES = int(os.environ.get("MAX_GAMES", "0")) or None
 def episode(cfg: dict) -> dict:
     sb_app = modal.App.lookup("collusion-sandboxes", create_if_missing=True)
     from harness.tasks import make_task
-    sandboxes = new_sandboxes(sb_app, make_task(cfg).n_total)
+    sandboxes = new_sandboxes(sb_app, make_task(cfg).n_total, size=cfg.get("sandbox", "default"))
     try:
         return play(cfg, sandboxes)
     finally:
@@ -189,6 +225,37 @@ def capacity_probe(n: int) -> dict:
     return dict(requested=n, up=sum(ok for _, ok, _, _ in res), failed=len(errors), errors=sorted(set(errors))[:5],
                 median_start_s=round(secs[len(secs) // 2], 1) if secs else None, max_start_s=round(secs[-1], 1) if secs else None,
                 wall_s=round(time.time() - t0, 1))
+
+
+@app.function(image=func_image, secrets=SECRETS, timeout=1800)
+def rereview_game(job: dict) -> dict:
+    """The officer reads one finished game again, with another model or prompt (python -m harness.rereview, remotely)."""
+    from harness.rereview import review
+    rec = job["rec"]
+    out = review(rec, model=job["model"], messages_only=job["messages_only"], officer_prompt=job["officer_prompt"] or None)
+    return dict(cfg=rec["cfg"], score=rec["score"], security=out["security"], source=job["source"])
+
+
+def run_rereview(src, officer_model, officer_prompt, messages_only, tag):
+    """modal run harness/run_modal.py --mode rereview --src 'results/difficulty-*-main.jsonl' --officer-model <id>
+    [--officer-prompt aggressive] [--messages-only] --tag <name>: one output file per source file."""
+    import glob
+    from harness.rereview import MODEL
+    files = sorted(glob.glob(src))
+    assert files, f"no results file matches {src}"
+    model = officer_model or MODEL
+    jobs = [dict(rec=json.loads(l), model=model, officer_prompt=officer_prompt, messages_only=messages_only, source=f)
+            for f in files for l in open(f) if l.strip()]
+    print(f"re-reviewing {len(jobs)} games with {model} ({officer_prompt or 'as played'}, {'messages only' if messages_only else 'full view'})")
+    outs = {f: open(f.replace(".jsonl", f"-officer-{tag}.jsonl"), "w") for f in files}
+    spent = done = 0
+    for r in rereview_game.map(jobs, order_outputs=False, return_exceptions=True):
+        if isinstance(r, Exception):
+            print("re-review failed:", type(r).__name__, str(r)[:150]); continue
+        spent += r["security"].get("cost_usd", 0); done += 1
+        outs[r.pop("source")].write(json.dumps(r, default=str) + "\n")
+    for h in outs.values(): h.close()
+    print(f"done: {done}/{len(jobs)} re-reviewed, ${spent:.2f}")
 
 
 @app.function(image=func_image, secrets=SECRETS, timeout=60)
@@ -230,10 +297,10 @@ def main(mode: str = "pilot", seeds: int = 5, budget: float = -1.0, tasks: str =
          v2: bool = False, security: bool = False, pairs: str = "", surveillance: bool = False,
          uniform_holders: bool = False, team_reward: bool = False,
          levels: str = "0,1,2,3", dry_run: bool = False, resume: bool = False, officer_prompt: str = "",
-         probe_n: int = 500):
+         probe_n: int = 500, arms: str = "", src: str = "", officer_model: str = "", messages_only: bool = False):
     from harness.tasks import ALL_TASKS, BY_NAME
     agents = [AGENTS.get(a, a) for a in agent.split(",")]  # short names: hermes, dolphin, opus; several with commas
-    assert len(agents) == 1 or mode == "difficulty", "several agent models in one launch: --mode difficulty only"
+    assert len(agents) == 1 or mode in ("difficulty", "ablations"), "several agent models in one launch: difficulty modes only"
     agent = agents[0]
     names = [n for n in BY_NAME if n in tasks.split(",")] if tasks else [t.name for t in ALL_TASKS]
     if mode == "sandbox-check":
@@ -242,7 +309,14 @@ def main(mode: str = "pilot", seeds: int = 5, budget: float = -1.0, tasks: str =
         print(json.dumps(capacity_probe.remote(probe_n), indent=2)); return
     if mode == "key-check":
         print(json.dumps(key_check.remote(), indent=2)); return
-    if mode == "difficulty":
+    if mode == "rereview":
+        run_rereview(src, officer_model, officer_prompt, messages_only, tag); return
+    if mode == "ablations":
+        names = sorted({c["task"] for c in build_ablation_cfgs(list(ARMS))})
+        cfgs = build_ablation_cfgs([a for a in arms.split(",") if a] or list(ARMS))
+        agents = sorted({c["agent"] for c in cfgs})
+        agent = agents[0]
+    elif mode == "difficulty":
         # honest-path difficulty: every (seed, task, level) for each agent model; default seeds 200-204 (fresh, matched)
         names = [n for n in HP_TASK_NAMES if n in tasks.split(",")] if tasks else list(HP_TASK_NAMES)
         if not seed_start: seed_start = 200
@@ -298,23 +372,26 @@ def main(mode: str = "pilot", seeds: int = 5, budget: float = -1.0, tasks: str =
         cfgs = [dict(task=n, seed=s, channel=c, pressure=p, agent=agent) for s in range(seeds) for n in names for c in (True, False) for p in (False, True)]
     out_dir = Path("results"); out_dir.mkdir(parents=True, exist_ok=True)
     what = f"{mode}-{'+'.join(names)}" if mode == "teams" else mode  # team runs: the task is in the name (two tasks once collided)
-    runs = {a: f"{what}-{a.split('/')[-1]}{'-' + tag if tag else ''}" for a in agents}  # one results file per agent model
+    # one results file per agent model (and per arm in ablation runs)
+    key = lambda c: (c.get("agent", agent), c.get("arm"))
+    groups = sorted({key(c) for c in cfgs}, key=str)
+    runs = {g: f"{what}-{g[0].split('/')[-1]}{'-' + g[1] if g[1] else ''}{'-' + tag if tag else ''}" for g in groups}
     from harness.transcript import git_hash
     git = git_hash()
     for k, c in enumerate(cfgs):
         c["game_id"] = game_id(c, k)
         c["git"] = git
     if dry_run:  # print what would run, and stop before any remote call
-        for a in agents:
-            report_dry_run([c for c in cfgs if c.get("agent", agent) == a], a, out_dir / f"{runs[a]}.jsonl")
-        if len(agents) > 1:
+        for g in groups:
+            report_dry_run([c for c in cfgs if key(c) == g], g[0], out_dir / f"{runs[g]}.jsonl")
+        if len(groups) > 1:
             print(f"ALL MODELS: {len(cfgs)} games in one launch, estimated ${sum(EST_PER_GAME.get(c['agent'], 0) for c in cfgs):.2f}")
         return
     assert budget > 0, "pass --budget <usd> (there is no default budget)"
     files, todo = {}, []
-    for a in agents:
+    for a in groups:
         out = out_dir / f"{runs[a]}.jsonl"
-        mine = [c for c in cfgs if c.get("agent", agent) == a]
+        mine = [c for c in cfgs if key(c) == a]
         done_keys = set()
         if out.exists() and out.stat().st_size > 0:  # an empty file (an aborted run) holds nothing to protect
             if resume:
@@ -334,7 +411,7 @@ def main(mode: str = "pilot", seeds: int = 5, budget: float = -1.0, tasks: str =
             if isinstance(r, Exception):
                 failed += 1
                 print(f"episode failed ({failed}):", type(r).__name__, str(r)[:200]); continue
-            a = r["cfg"].get("agent", agent)
+            a = key(r["cfg"])
             spent += r["cost_usd"]; done += 1
             b64 = r.pop("transcript_b64", None)
             if b64:
@@ -342,7 +419,7 @@ def main(mode: str = "pilot", seeds: int = 5, budget: float = -1.0, tasks: str =
                 path = files[a][1] / f"{r['cfg']['game_id']}.json.gz"
                 r["transcript_path"], r["transcript_sha256"] = str(path), save_b64(b64, path)
             handles[a].write(json.dumps(r, default=str) + "\n"); handles[a].flush()
-            print(f"[{done + failed}/{len(todo)}] {a.split('/')[-1]} {r['cfg'].get('game_id')} ${r['cost_usd']:.3f} "
+            print(f"[{done + failed}/{len(todo)}] {a[0].split('/')[-1]}{' ' + a[1] if a[1] else ''} {r['cfg'].get('game_id')} ${r['cost_usd']:.3f} "
                   f"{r['secs']:.0f}s | spent ${spent:.2f} | {(time.time() - t0) / 60:.1f} min")
             if spent >= budget:  # leaving the map stops the app, which cancels the games still running
                 print(f"STOP: budget ${budget} reached after {done} episodes (spent ${spent:.2f}); games in flight are cancelled")
