@@ -23,14 +23,29 @@ from pathlib import Path
 LEVELS = (0, 1, 2, 3)
 
 
-def load(paths):
-    recs = []
+EXCLUDE_BROKEN = 0.2  # PREREG: a game is excluded when more than 20% of its agent replies carry no command
+
+
+def broken(r):
+    """More than EXCLUDE_BROKEN of the game's agent replies were empty, filtered or had no command block."""
+    h = r["score"].get("reply_health", {})
+    return bool(h.get("calls")) and (h.get("empty", 0) + h.get("no_block", 0)) / h["calls"] > EXCLUDE_BROKEN
+
+
+def load(paths, exclude=True):
+    """Honest-path games from the results files; with exclude, the pre-registered exclusion is applied and the excluded
+    games are counted per model and task in load.excluded."""
+    recs, load.excluded = [], {}
     for p in paths:
         for line in open(p):
             if line.strip():
                 r = json.loads(line)
-                if r.get("score", {}).get("difficulty") is not None:
-                    recs.append(r)
+                if r.get("score", {}).get("difficulty") is None: continue
+                if exclude and broken(r):
+                    k = f"{model_name(r)}|{r['cfg']['task']}"
+                    load.excluded[k] = load.excluded.get(k, 0) + 1
+                    continue
+                recs.append(r)
     return recs
 
 
@@ -235,6 +250,8 @@ if __name__ == "__main__":
     ap.add_argument("--boot", type=int, default=10000)
     a = ap.parse_args()
     res = analyse(load(a.files), n_boot=a.boot)
+    res["excluded"] = load.excluded
+    print(f"excluded (more than {EXCLUDE_BROKEN:.0%} of replies without a command): {json.dumps(load.excluded)}")
     print_tables(res)
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     (out / "difficulty.json").write_text(json.dumps(res, indent=1, default=str))

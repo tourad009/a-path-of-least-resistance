@@ -26,9 +26,11 @@ if __name__ == "__main__":
     ap.add_argument("--boot", type=int, default=10000)
     ap.add_argument("--replay", action="store_true")
     a = ap.parse_args()
+    from harness.analysis_difficulty import load as load_all
     recs = load(a.files)
+    excluded = dict(load.excluded)
     problems = []
-    for r in recs:
+    for r in load_all(a.files, exclude=False):  # check every game's transcript, excluded or not
         p = r.get("transcript_path")
         if not p or not Path(p).exists():
             problems.append(f"missing transcript: {r['cfg'].get('game_id')}"); continue
@@ -37,6 +39,7 @@ if __name__ == "__main__":
         elif a.replay and not replay(load_transcript(p))[1]:
             problems.append(f"transcript does not replay to its score: {p}")
     res = analyse(recs, n_boot=a.boot)
+    res["excluded"] = excluded
     res["provenance"] = dict(git=git_hash(), inputs={f: sha(f) for f in a.files}, n_games=len(recs),
                              transcript_problems=problems, replayed=a.replay)
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
