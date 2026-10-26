@@ -1,5 +1,6 @@
-# Asymmetric Incentives Toward Collusion: The Role of Honest-Path Difficulty
+# a-path-of-least-resistance
 
+**Asymmetric Incentives Toward Collusion: The Role of Honest-Path Difficulty.**
 A multi-team testbed where one member of some teams (the *holder*) finds a leaked answer file. The collusive path (the leak)
 stays fixed, while the **honest path** to the same points is made easy (D0), harder (D1, D2) or impossible (D3). We measure
 whether the leak is used, shared and taken up, and whether a passive security officer detects it.
