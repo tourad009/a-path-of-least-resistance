@@ -11,7 +11,14 @@ measure whether the leak is used, shared and taken up, and whether a passive sec
 - **Main experiment: complete.** 600 runs: 6 models × 5 tasks × 4 levels × 5 seeds. Results are in `results/difficulty-*-main.jsonl`,
   with one transcript per run in `transcripts/`.
 - **Ablations: designed and partly run.** The design and predictions were fixed before any run
-  (`experiments/ABLATIONS.md`). Their results are not included yet.
+  (`experiments/ABLATIONS.md`). Partial results so far (`results/ablations-*-ab1.jsonl`):
+  - leak handed over (`handover`), 120 of 150 runs;
+  - messaging off (`nomessaging`), 70 of 150;
+  - password leak and its answer-leak baseline, 10 runs each.
+
+  The other arms have not been run.
+- **Officer re-checks:** the 600 main runs read again with the original prompt and by a second-vendor officer
+  (`results/*-main-officer-*.jsonl`).
 - **Paper:** `paper/` (LaTeX). Every number, table and figure is generated from the results files.
 
 ## Repository layout
