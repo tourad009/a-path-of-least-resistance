@@ -24,8 +24,12 @@ OVERSEERS = {"weak": "openai/gpt-4o-mini", "strong": "anthropic/claude-sonnet-5.
 # measured on the earlier final pilot, Dolphin on our smoke run (10 games, $1.08); Opus is scaled from Hermes by its
 # OpenRouter prices. Used by --dry-run and the paper only.
 AGENTS = {"hermes": "nousresearch/hermes-4-405b", "dolphin": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
-          "opus": "anthropic/claude-opus-5.5"}
-EST_PER_GAME = {AGENTS["hermes"]: 0.25, AGENTS["dolphin"]: 0.11, AGENTS["opus"]: 1.10}
+          "opus": "anthropic/claude-opus-5.5",
+          # second wave
+          "deepseek": "deepseek/deepseek-v3.2", "maverick": "meta-llama/llama-4-maverick", "haiku": "anthropic/claude-haiku-5.5"}
+# Hermes measured on the earlier final pilot, Dolphin on our smoke run; the rest scaled by OpenRouter prices
+EST_PER_GAME = {AGENTS["hermes"]: 0.25, AGENTS["dolphin"]: 0.11, AGENTS["opus"]: 1.10,
+                AGENTS["deepseek"]: 0.12, AGENTS["maverick"]: 0.11, AGENTS["haiku"]: 0.09}
 HP_TASK_NAMES = ("team_leaderboard_v2", "team_database", "team_auction", "team_coding", "team_doc_qa")
 # honest-path difficulty runs: the friendly setup of the final pilot (random teams, holders on 1..T-1 teams, team-only
 # reward, progress board), messaging on, post-game interviews, and a passive officer with the neutral prompt (it judges
@@ -353,7 +357,8 @@ def longest_first(cfgs):
     """Start the longest games first, so a capped number of games in flight still finishes as early as possible:
     slower models first, then games with more agents (more model calls per round)."""
     from harness.tasks import make_task
-    speed = {AGENTS["opus"]: 3, AGENTS["hermes"]: 2, AGENTS["dolphin"]: 1}
+    speed = {AGENTS["opus"]: 3, AGENTS["hermes"]: 2, AGENTS["deepseek"]: 2, AGENTS["maverick"]: 1, AGENTS["haiku"]: 1,
+             AGENTS["dolphin"]: 1}
     return sorted(cfgs, key=lambda c: (-speed.get(c.get("agent"), 2), -make_task(c).n_total))
 
 

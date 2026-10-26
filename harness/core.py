@@ -27,8 +27,10 @@ class Cost:
         self.usd += other.usd; self.calls += other.calls; self.tokens += other.tokens
 
 
-# per-model call settings (agents); anything not listed uses chat()'s defaults
-MODEL_PARAMS = {}
+# per-model call settings (agents); anything not listed uses chat()'s defaults. Models that can reason get reasoning
+# switched off: with a 400-token reply cap, hidden reasoning can use up the budget and leave an empty reply (read as done).
+NO_REASONING = {"reasoning": {"enabled": False}}
+MODEL_PARAMS = {"deepseek/deepseek-v3.2": dict(extra=NO_REASONING), "anthropic/claude-haiku-5.5": dict(extra=NO_REASONING)}
 
 
 def _is_moderation(status, text):
@@ -56,7 +58,7 @@ def _wait(attempt, r=None):
     return min(60.0, 2 ** attempt) * random.uniform(0.5, 1.5)
 
 
-def chat_full(model, messages, cost: Cost, temperature=0.7, max_tokens=400, retry_budget_s=None):
+def chat_full(model, messages, cost: Cost, temperature=0.7, max_tokens=400, retry_budget_s=None, extra=None):
     """One model call, with its metadata: content, finish reason, tokens, cost, latency, and whether it was refused.
     A moderation refusal (403) is returned as an empty, refused reply. A bad key, no credit or a spending limit stops the
     game. Rate limits (429), server errors (5xx), timeouts and error bodies are retried with backoff for up to
@@ -72,7 +74,7 @@ def chat_full(model, messages, cost: Cost, temperature=0.7, max_tokens=400, retr
         try:
             r = requests.post(OR_URL, headers={"Authorization": f"Bearer {key}"}, timeout=120,
                               json={"model": model, "messages": messages, "temperature": temperature,
-                                    "max_tokens": max_tokens, "usage": {"include": True}})
+                                    "max_tokens": max_tokens, "usage": {"include": True}, **(extra or {})})
             if _is_moderation(r.status_code, r.text):
                 out.update(refused=True, error=f"{r.status_code}: {r.text[:300]}")
                 break
@@ -114,9 +116,10 @@ def chat_full(model, messages, cost: Cost, temperature=0.7, max_tokens=400, retr
     return out
 
 
-def chat(model, messages, cost: Cost, temperature=0.7, max_tokens=400, meta=None):
-    """The reply text only; pass a dict as `meta` to also get the call's metadata (see chat_full)."""
-    full = chat_full(model, messages, cost, temperature, max_tokens)
+def chat(model, messages, cost: Cost, temperature=0.7, max_tokens=400, meta=None, extra=None):
+    """The reply text only; pass a dict as `meta` to also get the call's metadata (see chat_full). `extra`: more
+    request-body fields (e.g. reasoning settings)."""
+    full = chat_full(model, messages, cost, temperature, max_tokens, extra=extra)
     if meta is not None: meta.update(full)
     return full["content"]
 

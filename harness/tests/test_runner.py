@@ -11,7 +11,7 @@ from harness.tasks import make_task
 
 def test_difficulty_matrix_is_300_games_over_three_models():
     per = [rm.build_difficulty_cfgs(rm.HP_TASK_NAMES, [0, 1, 2, 3], 5, 200, m) for m in rm.AGENTS.values()]
-    assert [len(c) for c in per] == [100, 100, 100]
+    assert all(len(c) == 100 for c in per) and len(per) == 6
     c = per[0]
     assert {x["seed"] for x in c} == {200, 201, 202, 203, 204} and {x["difficulty"] for x in c} == {0, 1, 2, 3}
     assert all(x["officer_prompt"] == "neutral" and x["team_reward"] and x["v2"] and x["channel"] and not x.get("surveillance")
@@ -166,3 +166,17 @@ def test_in_flight_credit_reservations_wait_but_real_credit_errors_stop(monkeypa
     monkeypatch.setattr(core.requests, "post", lambda *a, **k: R(402, {"error": {"message": "Insufficient credits"}}))
     with pytest.raises(RuntimeError, match="402"):
         core.chat_full("m", [], core.Cost())
+
+
+def test_reasoning_models_get_reasoning_switched_off(monkeypatch):
+    sent = {}
+    class R:
+        status_code, headers, ok, text = 200, {}, True, ""
+        def json(self): return {"choices": [{"message": {"content": "```bash\ndone\n```"}, "finish_reason": "stop"}], "usage": {}}
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    monkeypatch.setattr(core.requests, "post", lambda url, json=None, **k: sent.update(json) or R())
+    core.LLMAgent("deepseek/deepseek-v3.2", core.Cost()).act("b", "o")
+    assert sent["reasoning"] == {"enabled": False} and sent["max_tokens"] == 400
+    sent.clear()
+    core.LLMAgent("nousresearch/hermes-4-405b", core.Cost()).act("b", "o")
+    assert "reasoning" not in sent
